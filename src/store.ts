@@ -3,8 +3,9 @@ import { isThemeId, themeBase } from "./lib/themes";
 import { clampFontSize, DEFAULT_FONT_SIZE } from "./lib/fontScale";
 import { bufferFor, dropBuffer } from "./lib/ring";
 import { dropErrorIndex } from "./lib/errors";
+import { dropInsightIndex } from "./lib/insight";
 import * as api from "./lib/logmin";
-import type { SourceDef, SourceRuntime, StatusPayload, TabDef, TabKind } from "./lib/types";
+import type { SelectedLine, SourceDef, SourceRuntime, StatusPayload, TabDef, TabKind } from "./lib/types";
 
 const TAB_META: Record<TabKind, { title: string; icon: TabDef["icon"]; iconClass: string }> = {
   welcome: { title: "Welcome", icon: "sparkles", iconClass: "soft-blue" },
@@ -86,8 +87,8 @@ interface AppState {
   runNonce: number;
   /** set by the error dock — the matching LogView scrolls to the seq and flashes it */
   jumpTarget: { sourceId: string; seq: number; nonce: number } | null;
-  /** line clicked in a LogView — the right dock's JSON tab renders it */
-  inspectLine: { sourceId: string; seq: number; raw: string } | null;
+  /** line last plain-clicked in a LogView — routes and feeds the right dock */
+  inspectLine: SelectedLine | null;
   toast: ToastMsg | null;
   dialog: (DialogRequest & { resolve: (value: string | null) => void }) | null;
 
@@ -124,7 +125,7 @@ interface AppState {
   setCommandOpen: (open: boolean) => void;
   runActive: () => void;
   jumpToLine: (sourceId: string, seq: number) => void;
-  setInspectLine: (line: AppState["inspectLine"]) => void;
+  setInspectLine: (line: SelectedLine | null) => void;
   showToast: (title: string, body: string, kind?: ToastMsg["kind"]) => void;
   clearToast: () => void;
   /** in-app replacement for window.prompt/confirm — unimplemented in the Tauri webview */
@@ -190,6 +191,7 @@ export const useApp = create<AppState>((set, get) => ({
     }
     dropBuffer(id);
     dropErrorIndex(id);
+    dropInsightIndex(id);
     const s = get();
     s.closeTab(sourceTabId(id));
     set((st) => {

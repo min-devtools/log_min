@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { bufferFor } from "./ring";
 import { errorIndexFor } from "./errors";
+import { insightIndexFor } from "./insight";
 import { detectLevel, TraceAssembler } from "./trace";
 import { useApp } from "../store";
 import type { BatchPayload, LogLine, SourceDef, StatusPayload } from "./types";
@@ -85,6 +86,7 @@ export async function initLogEvents(): Promise<void> {
       return line;
     });
     bufferFor(sourceId).push(tagged);
+    insightIndexFor(sourceId).feed(tagged, Date.now());
     let errorIndexChanged = false;
     for (const line of tagged) errorIndexChanged = errorIndex.feed(line) || errorIndexChanged;
     let errors = 0;

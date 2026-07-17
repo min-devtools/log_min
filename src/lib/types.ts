@@ -60,6 +60,17 @@ export interface LogLine {
   frame?: Frame;
 }
 
+/** snapshot of the line last plain-clicked in a LogView — drives the dock's
+ * Inspect/JSON tabs and survives ring eviction */
+export interface SelectedLine {
+  sourceId: string;
+  seq: number;
+  raw: string;
+  stream: LogStream;
+  level?: LogLevel;
+  traceId?: number;
+}
+
 /** payload of the Rust `log:batch` event */
 export interface BatchPayload {
   sourceId: string;

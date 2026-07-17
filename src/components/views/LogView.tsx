@@ -278,7 +278,7 @@ export function LogView({ sourceId, active }: Props) {
       const picks = new Set<number>();
       for (let s = lo; s <= hi; s++) picks.add(s);
       setSelection({ anchor: selection.anchor, picks });
-      setInspectLine({ sourceId, seq: l.seq, raw: l.raw });
+      setInspectLine({ sourceId, seq: l.seq, raw: l.raw, stream: l.stream, level: l.level, traceId: l.traceId });
     } else if ((e.metaKey || e.ctrlKey) && selection) {
       // ⌘click toggles a line in/out without touching the rest
       const picks = new Set(selection.picks);
@@ -286,11 +286,11 @@ export function LogView({ sourceId, active }: Props) {
       if (added) picks.add(l.seq);
       else picks.delete(l.seq);
       setSelection(picks.size ? { anchor: l.seq, picks } : null);
-      setInspectLine(added ? { sourceId, seq: l.seq, raw: l.raw } : null);
+      setInspectLine(added ? { sourceId, seq: l.seq, raw: l.raw, stream: l.stream, level: l.level, traceId: l.traceId } : null);
     } else {
       const deselect = selection?.picks.size === 1 && selection.picks.has(l.seq);
       setSelection(deselect ? null : { anchor: l.seq, picks: new Set([l.seq]) });
-      setInspectLine(deselect ? null : { sourceId, seq: l.seq, raw: l.raw });
+      setInspectLine(deselect ? null : { sourceId, seq: l.seq, raw: l.raw, stream: l.stream, level: l.level, traceId: l.traceId });
     }
   };
 
