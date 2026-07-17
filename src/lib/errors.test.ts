@@ -115,6 +115,20 @@ describe("ErrorIndex", () => {
       rawLines: ["2026-07-17 10:34:55 [ERROR] getStatisticBaccarat -> Can not get data : FAIL"],
     });
   });
+
+  it("tracks headSeq as the first line of the latest occurrence", () => {
+    const index = new ErrorIndex();
+    const trace = [
+      "TypeError: boom",
+      "    at fn (/app/src/a.ts:10:5)",
+    ];
+    feed(index, tagged([...trace, "plain line"], 0));
+    feed(index, tagged([...trace, "plain line"], 3));
+    const group = index.snapshot().groups[0];
+    expect(group.count).toBe(2);
+    expect(group.headSeq).toBe(3); // head of the SECOND occurrence
+    expect(group.firstSeq).toBe(0); // first-ever stays put
+  });
 });
 
 describe("copyTextForLines", () => {

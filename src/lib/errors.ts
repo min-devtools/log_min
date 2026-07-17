@@ -9,6 +9,8 @@ export interface ErrorGroup {
   count: number;
   firstSeq: number;
   lastSeq: number;
+  /** seq of the first line of the LATEST occurrence — the jump target ("trace head") */
+  headSeq: number;
   /** wall-clock ms of first/last occurrence (arrival time, not parsed from the log) */
   firstAt: number;
   lastAt: number;
@@ -101,6 +103,7 @@ function occurrenceFrom(traceId: number, lines: LogLine[]): ErrorGroup {
     count: 1,
     firstSeq: first.seq,
     lastSeq: last.seq,
+    headSeq: first.seq,
     firstAt: now,
     lastAt: now,
     traceId,
