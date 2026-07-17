@@ -66,6 +66,8 @@ export interface LogLine {
   traceStart?: boolean;
   /** set on parsed frame lines */
   frame?: Frame;
+  /** display color spans parsed from ANSI SGR codes (raw is stored stripped) */
+  ansi?: { start: number; end: number; cls: string }[];
 }
 
 /** snapshot of the line last plain-clicked in a LogView — drives the dock's

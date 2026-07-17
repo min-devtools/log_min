@@ -1112,6 +1112,18 @@ body.light .docs-preview-editor { color: var(--editor-fg); }
 .log-raw .tok-br-1 { color: var(--purple); }
 .log-raw .tok-br-2 { color: var(--blue-2); }
 
+/* ANSI SGR colors from the source's own output — mapped onto theme vars */
+.log-raw .ansi-30 { color: var(--text-muted); }
+.log-raw .ansi-31, .log-raw .ansi-91 { color: var(--red); }
+.log-raw .ansi-32, .log-raw .ansi-92 { color: var(--green); }
+.log-raw .ansi-33, .log-raw .ansi-93 { color: var(--orange); }
+.log-raw .ansi-34, .log-raw .ansi-94 { color: var(--blue); }
+.log-raw .ansi-35, .log-raw .ansi-95 { color: var(--purple); }
+.log-raw .ansi-36, .log-raw .ansi-96 { color: var(--blue-2); }
+.log-raw .ansi-37, .log-raw .ansi-97 { color: var(--text-primary, inherit); }
+.log-raw .ansi-90 { color: var(--text-muted); }
+.log-raw .ansi-bold { font-weight: 700; }
+
 /* error lines stay scannable: keep the danger tint on strings too */
 .log-line.lv-err .log-raw .tok-str { color: color-mix(in oklab, var(--status-danger), var(--green) 35%); }
 

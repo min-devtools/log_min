@@ -6,14 +6,17 @@ import logo from "../assets/logo.png";
 import { themeBase } from "../lib/themes";
 
 export function Titlebar() {
-  const { toggleTheme, toggleCompact, setCommandOpen, theme, openTab, editSource, runtimes, sources } = useApp();
+  const theme = useApp((s) => s.theme);
+  const sourceCount = useApp((s) => s.sources.length);
+  // primitive selector: batches touch runtimes constantly, the count rarely changes
+  const liveCount = useApp((s) => s.sources.filter((x) => s.runtimes[x.id]?.status === "live").length);
+  const { toggleTheme, toggleCompact, setCommandOpen, openTab, editSource } = useApp.getState();
 
-  const liveCount = sources.filter((s) => runtimes[s.id]?.status === "live").length;
   const tone = liveCount ? "green" : "idle";
   const label = liveCount
     ? `${liveCount} live`
-    : sources.length
-      ? `${sources.length} source${sources.length === 1 ? "" : "s"}`
+    : sourceCount
+      ? `${sourceCount} source${sourceCount === 1 ? "" : "s"}`
       : "no sources";
 
   return (

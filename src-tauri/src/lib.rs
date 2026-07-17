@@ -46,7 +46,7 @@ async fn cmd_stdin(
 
 #[tauri::command]
 async fn list_fonts() -> Result<Vec<String>, String> {
-    let out = std::process::Command::new("osascript")
+    let out = tokio::process::Command::new("osascript")
         .args([
             "-l",
             "JavaScript",
@@ -54,6 +54,7 @@ async fn list_fonts() -> Result<Vec<String>, String> {
             r#"ObjC.import("AppKit"); JSON.stringify(ObjC.deepUnwrap($.NSFontManager.sharedFontManager.availableFontFamilies))"#,
         ])
         .output()
+        .await
         .map_err(|e| e.to_string())?;
     if !out.status.success() {
         return Err(String::from_utf8_lossy(&out.stderr).into_owned());
@@ -70,14 +71,23 @@ fn editor_open(editor: String, path: String, line: u32, col: Option<u32>) -> Res
     editor::open_editor(&editor, &path, line, col)
 }
 
+/// Buffer export: write text to a path picked via the save dialog.
+#[tauri::command]
+async fn save_text(path: String, contents: String) -> Result<(), String> {
+    tokio::fs::write(&path, contents)
+        .await
+        .map_err(|e| e.to_string())
+}
+
 /// One-shot `docker ps` via the login shell (same PATH resolution as cmd sources).
 /// Returns raw `{{json .}}` lines; the frontend parses them.
 #[tauri::command]
 async fn docker_ps() -> Result<String, String> {
     let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".into());
-    let out = std::process::Command::new(shell)
+    let out = tokio::process::Command::new(shell)
         .args(["-lc", "docker ps --format '{{json .}}'"])
         .output()
+        .await
         .map_err(|e| e.to_string())?;
     if !out.status.success() {
         let err = String::from_utf8_lossy(&out.stderr).trim().to_string();
@@ -104,6 +114,7 @@ pub fn run() {
             cmd_stdin,
             list_fonts,
             editor_open,
+            save_text,
             docker_ps
         ])
         .setup(|app| {

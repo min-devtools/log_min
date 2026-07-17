@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { parseAnsi } from "./ansi";
 import { bufferFor } from "./ring";
 import { archiveFor } from "./errorArchive";
 import { errorIndexFor } from "./errors";
@@ -32,6 +33,11 @@ export function listFonts(): Promise<string[]> {
   return invoke("list_fonts");
 }
 
+/** write text to an absolute path (buffer export) */
+export function saveText(path: string, contents: string): Promise<void> {
+  return invoke("save_text", { path, contents });
+}
+
 export interface DockerContainer {
   id: string;
   name: string;
@@ -58,9 +64,6 @@ export async function dockerPs(): Promise<DockerContainer[]> {
 
 // ─── event wiring ─────────────────────────────────────────────────────────
 
-// eslint-disable-next-line no-control-regex
-const RE_ANSI = /\x1b\[[0-9;]*[A-Za-z]/g;
-
 /** per-source stateful trace detection */
 const assemblers = new Map<string, TraceAssembler>();
 
@@ -80,9 +83,15 @@ export async function initLogEvents(): Promise<void> {
     const asm = assemblerFor(sourceId);
     const errorIndex = errorIndexFor(sourceId);
     const tagged: LogLine[] = lines.map((l) => {
-      // ponytail: ANSI codes stripped, not rendered — colored terminal output lands as plain text
-      const raw = l.raw.includes("\x1b") ? l.raw.replace(RE_ANSI, "") : l.raw;
-      const line: LogLine = { ...l, raw, level: detectLevel(raw) };
+      // ANSI: raw is stored stripped (search/copy stay clean), SGR colors kept as spans
+      let raw = l.raw;
+      let ansi: LogLine["ansi"];
+      if (raw.includes("\x1b")) {
+        const parsed = parseAnsi(raw);
+        raw = parsed.clean;
+        if (parsed.spans.length) ansi = parsed.spans;
+      }
+      const line: LogLine = { ...l, raw, ansi, level: detectLevel(raw) };
       asm.feed(line);
       return line;
     });

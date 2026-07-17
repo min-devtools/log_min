@@ -9,6 +9,7 @@
     "store:default",
     "clipboard-manager:allow-write-text",
     "dialog:allow-open",
+    "dialog:allow-save",
     {
       "identifier": "opener:allow-open-url",
       "allow": [

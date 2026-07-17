@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { Badge } from "../ui/Badge";
 import { ContextMenu, type ContextMenuItem } from "../ui/ContextMenu";
-import { newSourceId, runtimeOf, useApp } from "../store";
-import type { CollectionDef, SourceDef, TabKind } from "../lib/types";
+import { newSourceId, useApp } from "../store";
+import type { CollectionDef, SourceDef, SourceStatus, TabKind } from "../lib/types";
 import { Icon, type IconName } from "../ui/Icon";
 
 const WORKSPACE_NAV: { kind: TabKind; icon: IconName; iconClass: string; label: string; meta?: string }[] = [
@@ -28,11 +29,24 @@ export function Sidebar() {
   const [dragging, setDragging] = useState<DragItem | null>(null);
   const [dragOverCollection, setDragOverCollection] = useState<string | null>(null);
   const [dropIndicator, setDropIndicator] = useState<string | null>(null);
+  const sources = useApp((s) => s.sources);
+  const collections = useApp((s) => s.collections);
+  const tabs = useApp((s) => s.tabs);
+  const activeTabId = useApp((s) => s.activeTabId);
+  // statuses only — per-batch counter updates must not redraw the sidebar
+  const statuses = useApp(
+    useShallow((s) => {
+      const out: Record<string, SourceStatus> = {};
+      for (const id in s.runtimes) out[id] = s.runtimes[id].status;
+      return out;
+    }),
+  );
   const {
-    sources, collections, runtimes, tabs, activeTabId, openTab, openSourceTab,
-    editSource, deleteSource, startSource, stopSource, openDialog, saveSource, showToast,
-    createCollection, renameCollection, deleteCollection, reorderCollection, moveSource,
-  } = useApp();
+    openTab, openSourceTab, editSource, deleteSource, startSource, stopSource,
+    openDialog, saveSource, showToast, createCollection, renameCollection,
+    deleteCollection, reorderCollection, moveSource,
+  } = useApp.getState();
+  const statusOf = (id: string): SourceStatus => statuses[id] ?? "idle";
 
   const activeTab = tabs.find((t) => t.id === activeTabId);
   const activeSource = activeTab?.kind === "source" ? sources.find((s) => s.id === activeTab.sourceId) : undefined;
@@ -51,11 +65,10 @@ export function Sidebar() {
   };
 
   const removeSrc = (src: SourceDef) => {
-    const rt = runtimeOf({ runtimes }, src.id);
     void openDialog({
       kind: "confirm",
       title: "Remove source?",
-      message: `"${src.name}" and its buffered lines are removed. ${rt.status === "live" ? "The running process is stopped first." : ""}`,
+      message: `"${src.name}" and its buffered lines are removed. ${statusOf(src.id) === "live" ? "The running process is stopped first." : ""}`,
       confirmLabel: "Remove",
       danger: true,
     }).then((ok) => {
@@ -98,7 +111,8 @@ export function Sidebar() {
       const key = event.key.toLowerCase();
       if (mod && key === "d") { event.preventDefault(); duplicateSrc(activeSource); }
       else if (mod && key === "e") { event.preventDefault(); void renameSrc(activeSource); }
-      else if (!mod && (event.key === "Delete" || event.key === "Backspace")) { event.preventDefault(); removeSrc(activeSource); }
+      // ⌘⌫ only — a plain Backspace outside inputs is too easy to hit by accident
+      else if (mod && (event.key === "Delete" || event.key === "Backspace")) { event.preventDefault(); removeSrc(activeSource); }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -186,7 +200,7 @@ export function Sidebar() {
   };
 
   const sourceRow = (s: SourceDef) => {
-    const rt = runtimeOf({ runtimes }, s.id);
+    const status = statusOf(s.id);
     return (
       <div
         key={s.id}
@@ -210,11 +224,11 @@ export function Sidebar() {
       >
         <Icon
           name={s.kind === "cmd" ? "terminal" : s.kind === "http" ? "globe" : "docs"}
-          className={rt.status === "live" ? "soft-green" : undefined}
+          className={status === "live" ? "soft-green" : undefined}
         />
         <span>{s.name}</span>
-        <Badge tone={statusTone(rt.status)}>
-          {rt.status === "live" ? "live" : rt.status === "error" ? "error" : "idle"}
+        <Badge tone={statusTone(status)}>
+          {status === "live" ? "live" : status === "error" ? "error" : "idle"}
         </Badge>
       </div>
     );
@@ -223,11 +237,10 @@ export function Sidebar() {
   const rootSources = sources.filter((s) => !s.collectionId || !collections.some((c) => c.id === s.collectionId));
 
   const menuSource = menu ? sources.find((s) => s.id === menu.id) : undefined;
-  const menuRt = menu ? runtimeOf({ runtimes }, menu.id) : undefined;
   const menuItems: ContextMenuItem[] = menuSource
     ? [
         { icon: "docs", label: "Open", strong: true, onClick: () => openSourceTab(menuSource.id) },
-        menuRt?.status === "live"
+        statusOf(menuSource.id) === "live"
           ? { icon: "stop", label: "Stop", onClick: () => void stopSource(menuSource.id) }
           : {
               icon: "play",
@@ -243,7 +256,7 @@ export function Sidebar() {
         ...(menuSource.collectionId
           ? [{ icon: "x" as IconName, label: "Remove from collection", onClick: () => moveSource(menuSource.id, undefined, null) }]
           : []),
-        { icon: "trash", label: "Remove", kbd: "⌫", onClick: () => removeSrc(menuSource) },
+        { icon: "trash", label: "Remove", kbd: "⌘⌫", onClick: () => removeSrc(menuSource) },
       ]
     : [];
 

@@ -4,7 +4,9 @@ import { ContextMenu } from "../ui/ContextMenu";
 import { Icon } from "../ui/Icon";
 
 export function TabsBar() {
-  const { tabs, activeTabId, activateTab, closeTab, editSource, renameTab, reorderTab } = useApp();
+  const tabs = useApp((s) => s.tabs);
+  const activeTabId = useApp((s) => s.activeTabId);
+  const { activateTab, closeTab, editSource, renameTab, reorderTab } = useApp.getState();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [menu, setMenu] = useState<{ x: number; y: number; id: string } | null>(null);

@@ -61,10 +61,10 @@ interface Props {
 /** Dedicated center tab tracing one error group: metadata, stack, captured ±10-line snippets. */
 export function ErrorTraceView({ sourceId, fingerprint, title, active }: Props) {
   const source = useApp((s) => s.sources.find((x) => x.id === sourceId));
-  const errorVersion = useApp((s) => s.errorVersions[sourceId] ?? 0);
-  const bufVersion = useApp((s) => s.bufVersions[sourceId] ?? 0);
-  const showToast = useApp((s) => s.showToast);
-  const setInspectLine = useApp((s) => s.setInspectLine);
+  // hidden trace tabs unsubscribe from batches; activation flips the sentinel → one fresh paint
+  const errorVersion = useApp((s) => (active ? s.errorVersions[sourceId] ?? 0 : -1));
+  const bufVersion = useApp((s) => (active ? s.bufVersions[sourceId] ?? 0 : -1));
+  const { showToast, setInspectLine } = useApp.getState();
   // same selection model as LogView: anchor for shift-ranges, picks for ⌘C
   const [selection, setSelection] = useState<{ anchor: number; picks: Set<number> } | null>(null);
   const [wrap, setWrap] = useState(() => localStorage.getItem("log:trace-wrap") !== "0");

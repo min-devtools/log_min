@@ -3,7 +3,8 @@ import { Icon, type IconName } from "../../ui/Icon";
 import { useApp } from "../../store";
 
 export function WelcomeView({ active }: { active: boolean }) {
-  const { sources, openTab, editSource, setCommandOpen } = useApp();
+  const sources = useApp((s) => s.sources);
+  const { openTab, editSource, setCommandOpen } = useApp.getState();
 
   const actions: { icon: IconName; label: string; desc: string; onClick: () => void }[] = [
     { icon: "docs", label: "Tail a file", desc: "Rotation-aware tail of any log file.", onClick: () => editSource(null, { kind: "file" }) },

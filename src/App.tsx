@@ -32,10 +32,14 @@ function renderView(tab: TabDef, active: boolean) {
 }
 
 export default function App() {
-  const {
-    tabs, activeTabId, theme, compact, leftCollapsed, rightCollapsed,
-    toggleLeft, toggleRight, setCommandOpen, editSource,
-  } = useApp();
+  // per-slice selectors — a bare useApp() would re-render the whole shell on every log batch
+  const tabs = useApp((s) => s.tabs);
+  const activeTabId = useApp((s) => s.activeTabId);
+  const theme = useApp((s) => s.theme);
+  const compact = useApp((s) => s.compact);
+  const leftCollapsed = useApp((s) => s.leftCollapsed);
+  const rightCollapsed = useApp((s) => s.rightCollapsed);
+  const { toggleLeft, toggleRight, setCommandOpen, editSource } = useApp.getState();
 
   const inspectorOk = useApp((s) => inspectorAvailable(s));
   const uiFont = useApp((s) => s.uiFont);

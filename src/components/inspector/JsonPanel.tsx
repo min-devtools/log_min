@@ -115,7 +115,14 @@ export function JsonPanel({ line, onCopy }: {
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
   const collapsedCount = containers.reduce((count, path) => count + Number(collapsed.has(path)), 0);
 
-  useLayoutEffect(() => setCollapsed(new Set()), [line]);
+  // ponytail: the tree is not virtualized — huge payloads start fully folded so a
+  // 10k-node line can't freeze the dock; the user expands what they need
+  const bigPayload = !!pretty && containers.length > 0 && pretty.length > 50_000;
+  useLayoutEffect(
+    () => setCollapsed(new Set(bigPayload ? containers : [])),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [line],
+  );
 
   const toggle = (path: string) => setCollapsed((current) => {
     const next = new Set(current);

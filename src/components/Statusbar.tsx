@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { useShallow } from "zustand/react/shallow";
 import { runtimeOf, useApp } from "../store";
 
 function fmtInt(n: number): string {
@@ -16,11 +17,13 @@ function fmtUptime(startedAt: number, now: number): string {
 }
 
 export function Statusbar() {
-  const { tabs, activeTabId, runtimes, sources, editSource } = useApp();
-  const activeTab = tabs.find((t) => t.id === activeTabId);
+  const activeTab = useApp((s) => s.tabs.find((t) => t.id === s.activeTabId));
   const sourceId = activeTab?.sourceId;
-  const def = sourceId ? sources.find((s) => s.id === sourceId) : undefined;
-  const rt = sourceId ? runtimeOf({ runtimes }, sourceId) : undefined;
+  const def = useApp((s) => (sourceId ? s.sources.find((x) => x.id === sourceId) : undefined));
+  const sourceCount = useApp((s) => s.sources.length);
+  // shallow pick: only the ACTIVE source's counters redraw the bar, not every batch
+  const rt = useApp(useShallow((s) => (sourceId ? { ...runtimeOf(s, sourceId) } : undefined)));
+  const { editSource } = useApp.getState();
 
   // uptime ticker — only while a live source is on screen
   const [now, setNow] = useState(() => Date.now());
@@ -57,7 +60,7 @@ export function Statusbar() {
             )}
           </>
         ) : (
-          <span>{sources.length ? `${sources.length} source${sources.length === 1 ? "" : "s"}` : "no sources"}</span>
+          <span>{sourceCount ? `${sourceCount} source${sourceCount === 1 ? "" : "s"}` : "no sources"}</span>
         )}
       </div>
       <div>

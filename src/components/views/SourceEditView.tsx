@@ -38,9 +38,10 @@ function kvToText(kv?: Record<string, string>): string {
 const baseName = (p: string) => p.split("/").filter(Boolean).pop() ?? p;
 
 export function SourceEditView({ active }: { active: boolean }) {
-  const {
-    sources, editingSourceId, sourceDraft, saveSource, openSourceTab, closeTab, startSource, showToast,
-  } = useApp();
+  const sources = useApp((s) => s.sources);
+  const editingSourceId = useApp((s) => s.editingSourceId);
+  const sourceDraft = useApp((s) => s.sourceDraft);
+  const { saveSource, openSourceTab, closeTab, startSource, showToast } = useApp.getState();
   const existing = editingSourceId ? sources.find((x) => x.id === editingSourceId) : undefined;
 
   const [kind, setKind] = useState<FormKind>(existing?.kind ?? (sourceDraft?.kind as SourceKind) ?? "file");

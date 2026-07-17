@@ -9,10 +9,12 @@ import { FONT_SIZE_STEP } from "../../lib/fontScale";
 import { EDITOR_LABELS, loadEditorApp, saveEditorApp, type EditorApp } from "../../lib/editor";
 
 export function SettingsView({ active }: { active: boolean }) {
-  const {
-    theme, setTheme, compact, toggleCompact,
-    uiFontSize, setUiFontSize, uiFont, setUiFont, editorFont, setEditorFont,
-  } = useApp();
+  const theme = useApp((s) => s.theme);
+  const compact = useApp((s) => s.compact);
+  const uiFontSize = useApp((s) => s.uiFontSize);
+  const uiFont = useApp((s) => s.uiFont);
+  const editorFont = useApp((s) => s.editorFont);
+  const { setTheme, toggleCompact, setUiFontSize, setUiFont, setEditorFont } = useApp.getState();
   const fontList = useFonts();
   const [editorApp, setEditorApp] = useState<EditorApp>(loadEditorApp);
 
