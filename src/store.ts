@@ -102,6 +102,8 @@ interface AppState {
   /** open the source-edit tab for an existing source (id) or a new draft (null, optional prefill) */
   editSource: (id: string | null, draft?: Partial<SourceDef>) => void;
   onBatch: (sourceId: string, lines: number, errors: number, dropped: number) => void;
+  /** "Clear buffer" pressed — zero the per-source counters and drop the published line */
+  onBufferCleared: (sourceId: string) => void;
   onErrorIndexChange: (sourceId: string) => void;
   onStatus: (p: StatusPayload) => void;
 
@@ -201,7 +203,13 @@ export const useApp = create<AppState>((set, get) => ({
       delete runtimes[id];
       delete bufVersions[id];
       delete errorVersions[id];
-      return { sources: st.sources.filter((x) => x.id !== id), runtimes, bufVersions, errorVersions };
+      return {
+        sources: st.sources.filter((x) => x.id !== id),
+        runtimes,
+        bufVersions,
+        errorVersions,
+        inspectLine: st.inspectLine?.sourceId === id ? null : st.inspectLine,
+      };
     });
   },
 
@@ -267,6 +275,17 @@ export const useApp = create<AppState>((set, get) => ({
         },
       };
     }),
+
+  onBufferCleared: (sourceId) =>
+    set((s) => ({
+      bufVersions: { ...s.bufVersions, [sourceId]: (s.bufVersions[sourceId] ?? 0) + 1 },
+      errorVersions: { ...s.errorVersions, [sourceId]: (s.errorVersions[sourceId] ?? 0) + 1 },
+      runtimes: {
+        ...s.runtimes,
+        [sourceId]: { ...runtimeOf(s, sourceId), lines: 0, errors: 0, dropped: 0 },
+      },
+      inspectLine: s.inspectLine?.sourceId === sourceId ? null : s.inspectLine,
+    })),
 
   onErrorIndexChange: (sourceId) =>
     set((s) => ({

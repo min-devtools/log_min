@@ -529,8 +529,7 @@ export function LogView({ sourceId, active }: Props) {
               insightIndexFor(sourceId).clear();
               setSelection(null);
               setMatches([]);
-              useApp.getState().onBatch(sourceId, 0, 0, 0);
-              useApp.getState().onErrorIndexChange(sourceId);
+              useApp.getState().onBufferCleared(sourceId);
             }}
           >
             <Icon name="trash" />

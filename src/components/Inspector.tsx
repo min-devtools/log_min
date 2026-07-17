@@ -31,13 +31,14 @@ export function Inspector() {
     setSelectedFingerprint(null);
   }, [sourceId]);
 
-  // a plain click routes the dock; clearing the last selection returns to Overview
-  const lineKey = line ? `${line.sourceId}:${line.seq}` : null;
+  // a plain click routes the dock; clearing the last selection returns to Overview.
+  // keyed on object identity: every explicit gesture publishes a fresh snapshot,
+  // so re-publishing the same seq (e.g. the {} button) still re-routes
   useEffect(() => {
     if (line) dispatch({ type: "select", route: shouldAutoRouteJson(line.raw) ? "json" : "inspect" });
     else dispatch({ type: "deselect" });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lineKey]);
+  }, [line]);
 
   const snapshot = useMemo(
     () => (sourceId ? errorIndexFor(sourceId).snapshot() : { totalOccurrences: 0, groups: [] }),

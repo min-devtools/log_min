@@ -65,6 +65,7 @@ export function OverviewPanel({ sourceId, source, groups, onShowError }: {
       <section className="dock-section">
         <h4>Signals</h4>
         <div className="dock-kv">
+          {/* rt.errors counts occurrences (traces group to 1); errors60 counts err-leveled lines */}
           <span>errors</span>
           <strong>{fmtInt(rt.errors)}{insight.errors60 ? ` · ${fmtInt(insight.errors60)} in 60s` : ""}</strong>
           <span>warnings</span>

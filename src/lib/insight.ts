@@ -30,6 +30,7 @@ export class InsightIndex {
   private buckets: Bucket[] = [];
   private totalWarns = 0;
 
+  /** assumes atMs is monotonic per source (callers pass Date.now() at ingest); an out-of-order clock only skews stats, never unbounds memory */
   feed(lines: LogLine[], atMs: number): void {
     const sec = Math.floor(atMs / 1000);
     let bucket = this.buckets[this.buckets.length - 1];
