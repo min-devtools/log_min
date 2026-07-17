@@ -81,7 +81,11 @@ async fn docker_ps() -> Result<String, String> {
         .map_err(|e| e.to_string())?;
     if !out.status.success() {
         let err = String::from_utf8_lossy(&out.stderr).trim().to_string();
-        return Err(if err.is_empty() { "docker ps failed".into() } else { err });
+        return Err(if err.is_empty() {
+            "docker ps failed".into()
+        } else {
+            err
+        });
     }
     Ok(String::from_utf8_lossy(&out.stdout).into_owned())
 }
