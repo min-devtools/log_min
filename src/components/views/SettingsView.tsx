@@ -87,6 +87,8 @@ export function SettingsView({ active }: { active: boolean }) {
             <div className="shortcut-row"><span>New source</span><span className="kbd">⌘N</span></div>
             <div className="shortcut-row"><span>Toggle follow</span><span className="kbd">⌘↵</span></div>
             <div className="shortcut-row"><span>Find in buffer</span><span className="kbd">⌘F</span></div>
+            <div className="shortcut-row"><span>Next / prev error</span><span className="kbd">F8 / ⇧F8</span></div>
+            <div className="shortcut-row"><span>Clear buffer</span><span className="kbd">⌃L</span></div>
             <div className="shortcut-row"><span>Copy selected lines</span><span className="kbd">⌘C</span></div>
             <div className="shortcut-row"><span>Toggle sidebar</span><span className="kbd">⌘B</span></div>
             <div className="shortcut-row"><span>Toggle right panel</span><span className="kbd">⌘R</span></div>

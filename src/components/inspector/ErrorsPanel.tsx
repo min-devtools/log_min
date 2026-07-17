@@ -42,6 +42,19 @@ export function ErrorsPanel({ sourceId, source, snapshot }: {
 }): ReactNode {
   const openErrorTab = useApp((s) => s.openErrorTab);
   const clearErrors = useApp((s) => s.clearErrors);
+  const openDialog = useApp((s) => s.openDialog);
+  const confirmClear = () => {
+    if (!sourceId) return;
+    void openDialog({
+      kind: "confirm",
+      title: "Clear captured errors?",
+      message: "Captured errors live only in memory and cannot be recovered once cleared.",
+      confirmLabel: "Clear",
+      danger: true,
+    }).then((ok) => {
+      if (ok !== null) clearErrors(sourceId);
+    });
+  };
   return (
     <div className="inspector-scroll error-dock">
       {snapshot.groups.length > 0 && (
@@ -51,7 +64,7 @@ export function ErrorsPanel({ sourceId, source, snapshot }: {
             iconOnly
             title="Clear captured errors from memory"
             aria-label="Clear captured errors"
-            onClick={() => sourceId && clearErrors(sourceId)}
+            onClick={confirmClear}
           >
             <Icon name="trash" size={13} />
           </ToolButton>

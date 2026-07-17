@@ -1,5 +1,4 @@
 import { useEffect } from "react";
-import { LoadingBar } from "./ui/LoadingBar";
 import { Titlebar } from "./components/Titlebar";
 import { Sidebar } from "./components/Sidebar";
 import { TabsBar } from "./components/TabsBar";
@@ -137,7 +136,6 @@ export default function App() {
 
   return (
     <div className="app-frame">
-      <LoadingBar active={false} />
       <Titlebar />
       <main className="main">
         <Sidebar />

@@ -396,6 +396,23 @@ export function LogView({ sourceId, active }: Props) {
           publishLine(null);
         }
       }
+      // F8 / ⇧F8 step to the next/previous error line (err level or trace head)
+      if (!inInput && e.key === "F8" && viewLen > 0) {
+        e.preventDefault();
+        const dir: 1 | -1 = e.shiftKey ? -1 : 1;
+        const curRing = selection ? ring.indexOfSeq(selection.anchor) : -1;
+        const curView = viewIdx ? (curRing >= 0 ? viewIdx.indexOf(curRing) : -1) : curRing;
+        let i = curView < 0 ? (dir === 1 ? 0 : viewLen - 1) : curView + dir;
+        for (; i >= 0 && i < viewLen; i += dir) {
+          const line = lineAt(i);
+          if (line && (line.level === "err" || line.traceStart)) {
+            setSelection({ anchor: line.seq, picks: new Set([line.seq]) });
+            publishLine(line);
+            jumpToIndex(i);
+            break;
+          }
+        }
+      }
       // ↑/↓ walk the (possibly filtered) view; the dock follows the selection
       if (!inInput && !mod && !e.altKey && (e.key === "ArrowDown" || e.key === "ArrowUp") && viewLen > 0) {
         e.preventDefault();
@@ -473,9 +490,11 @@ export function LogView({ sourceId, active }: Props) {
   // per-render line matcher — substring or regex, mirrors ring.search
   let regexInvalid = false;
   let lineRe: RegExp | null = null;
+  let gRe: RegExp | null = null;
   if (qRaw && regexMode) {
     try {
       lineRe = new RegExp(qRaw, caseSensitive ? "" : "i");
+      gRe = new RegExp(qRaw, caseSensitive ? "g" : "gi");
     } catch {
       regexInvalid = true;
     }
@@ -491,15 +510,11 @@ export function LogView({ sourceId, active }: Props) {
     if (!q) return [];
     const out: [number, number][] = [];
     if (regexMode) {
-      let re: RegExp;
-      try {
-        re = new RegExp(qRaw, caseSensitive ? "g" : "gi");
-      } catch {
-        return [];
-      }
-      for (let k = 0, m = re.exec(text); m && k < 400; m = re.exec(text), k++) {
+      if (!gRe) return [];
+      gRe.lastIndex = 0; // shared per-render regex — rewind between rows
+      for (let k = 0, m = gRe.exec(text); m && k < 400; m = gRe.exec(text), k++) {
         if (m[0] === "") {
-          re.lastIndex++; // zero-width match — step forward or loop forever
+          gRe.lastIndex++; // zero-width match — step forward or loop forever
           continue;
         }
         out.push([m.index, m.index + m[0].length]);

@@ -13,10 +13,8 @@ export const THEMES: ThemeDef[] = [
   { id: "bearded-solarized-dark", label: "Bearded Solarized", base: "dark" },
   { id: "bearded-solarized-light", label: "Bearded Solarized Light", base: "light" },
   { id: "bearded-solarized-reversed", label: "Bearded Solarized Reversed", base: "dark" },
-  { id: "bearded-solarized", label: "Bearded Solarized", base: "dark" },
   { id: "catppuccin-mocha", label: "Catppuccin Mocha", base: "dark" },
   { id: "cyberpunk-neon", label: "Cyberpunk Neon", base: "dark" },
-  { id: "default-dark", label: "Bearded Arc", base: "dark" },
   { id: "dracula", label: "Dracula", base: "dark" },
   { id: "gruv-box", label: "Gruvbox Soft", base: "dark" },
   { id: "monokai", label: "Monokai", base: "dark" },
@@ -26,12 +24,21 @@ export const THEMES: ThemeDef[] = [
   { id: "rose-milk", label: "Rose Milk", base: "light" },
   { id: "rose-pine", label: "Rose Pine", base: "dark" },
   { id: "sakura-pastel", label: "Sakura Pastel", base: "light" },
-  { id: "slate-neutral-dark-schematic", label: "Slate Neutral Dark", base: "dark" },
   { id: "slate-neutral-dark", label: "Slate Neutral Dark", base: "dark" },
   { id: "soft-light", label: "Soft Light", base: "light" },
   { id: "tokyo-night", label: "Tokyo Night", base: "dark" },
   { id: "vscode-dark", label: "Vscode Dark", base: "dark" },
 ];
 
-export const themeBase = (id: string): "dark" | "light" => THEMES.find((theme) => theme.id === id)?.base ?? "dark";
-export const isThemeId = (id: string): boolean => THEMES.some((theme) => theme.id === id);
+// Persisted ids from older builds — same palette under a former name.
+// Still valid (themes.css keeps their selectors) but hidden from the picker.
+const LEGACY_IDS: Record<string, string> = {
+  "default-dark": "dark",
+  "bearded-solarized": "bearded-solarized-dark",
+  "slate-neutral-dark-schematic": "slate-neutral-dark",
+};
+
+export const themeBase = (id: string): "dark" | "light" =>
+  THEMES.find((theme) => theme.id === (LEGACY_IDS[id] ?? id))?.base ?? "dark";
+export const isThemeId = (id: string): boolean =>
+  id in LEGACY_IDS || THEMES.some((theme) => theme.id === id);

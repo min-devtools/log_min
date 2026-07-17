@@ -105,6 +105,7 @@ pub fn run() {
     tauri::Builder::default()
         .manage(SourceManager::default())
         .plugin(tauri_plugin_store::Builder::new().build())
+        .plugin(tauri_plugin_window_state::Builder::default().build())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
