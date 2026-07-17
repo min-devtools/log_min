@@ -3,10 +3,10 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { ToolButton } from "../../ui/ToolButton";
 import { Icon } from "../../ui/Icon";
-import { JsonView } from "../../ui/JsonView";
 import { runtimeOf, useApp } from "../../store";
 import { bufferFor } from "../../lib/ring";
 import { copyTextForLines, errorIndexFor } from "../../lib/errors";
+import { insightIndexFor } from "../../lib/insight";
 import { rawLogText, tokenizeLogLine } from "../../lib/logPresentation";
 import { estimateLogRowHeight } from "../../lib/wrapLayout";
 import type { LogLine } from "../../lib/types";
@@ -59,8 +59,6 @@ export function LogView({ sourceId, active }: Props) {
   const [matchIdx, setMatchIdx] = useState(0);
   const [flashSeq, setFlashSeq] = useState<number | null>(null);
   const [stdinValue, setStdinValue] = useState("");
-  /** line shown in the JSON/raw inspector overlay (double-click or {} button) */
-  const [inspect, setInspect] = useState<LogLine | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   const wrappedVirtualizer = useVirtualizer({
@@ -246,6 +244,14 @@ export function LogView({ sourceId, active }: Props) {
     await copyText(copyTextForLines(selected), `${selected.length} selected line${selected.length === 1 ? "" : "s"}.`);
   }, [selection, ring, copyText]);
 
+  const publishLine = useCallback(
+    (l: LogLine | null) =>
+      setInspectLine(
+        l ? { sourceId, seq: l.seq, raw: l.raw, stream: l.stream, level: l.level, traceId: l.traceId } : null,
+      ),
+    [setInspectLine, sourceId],
+  );
+
   useEffect(() => {
     if (!active) return;
     const onKey = (e: KeyboardEvent) => {
@@ -260,37 +266,32 @@ export function LogView({ sourceId, active }: Props) {
         e.preventDefault();
         void copySelection();
       }
-      if (e.key === "Escape" && inspect) {
-        setInspect(null);
-        return;
-      }
       if (e.key === "Escape" && searchOpen && !inInput) setSearchOpen(false);
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [active, selection, copySelection, searchOpen, inspect]);
+  }, [active, selection, copySelection, searchOpen]);
 
   const onRowClick = (l: LogLine, e: React.MouseEvent) => {
     // dragging to select text also fires click on mouseup — keep the selection
     if (window.getSelection()?.toString()) return;
     if (e.shiftKey && selection) {
+      // extending a copy range must not re-route the dock
       const [lo, hi] = [Math.min(selection.anchor, l.seq), Math.max(selection.anchor, l.seq)];
       const picks = new Set<number>();
       for (let s = lo; s <= hi; s++) picks.add(s);
       setSelection({ anchor: selection.anchor, picks });
-      setInspectLine({ sourceId, seq: l.seq, raw: l.raw, stream: l.stream, level: l.level, traceId: l.traceId });
     } else if ((e.metaKey || e.ctrlKey) && selection) {
-      // ⌘click toggles a line in/out without touching the rest
+      // ⌘click toggles a line in/out without touching the rest — and without re-routing
       const picks = new Set(selection.picks);
-      const added = !picks.has(l.seq);
-      if (added) picks.add(l.seq);
-      else picks.delete(l.seq);
+      if (picks.has(l.seq)) picks.delete(l.seq);
+      else picks.add(l.seq);
       setSelection(picks.size ? { anchor: l.seq, picks } : null);
-      setInspectLine(added ? { sourceId, seq: l.seq, raw: l.raw, stream: l.stream, level: l.level, traceId: l.traceId } : null);
+      if (!picks.size) publishLine(null);
     } else {
       const deselect = selection?.picks.size === 1 && selection.picks.has(l.seq);
       setSelection(deselect ? null : { anchor: l.seq, picks: new Set([l.seq]) });
-      setInspectLine(deselect ? null : { sourceId, seq: l.seq, raw: l.raw, stream: l.stream, level: l.level, traceId: l.traceId });
+      publishLine(deselect ? null : l);
     }
   };
 
@@ -411,18 +412,18 @@ export function LogView({ sourceId, active }: Props) {
         ].filter(Boolean).join(" ")}
         style={style}
         onClick={(e) => onRowClick(l, e)}
-        onDoubleClick={() => setInspect(l)}
       >
         <span className="log-raw">{renderRaw(rawLogText(l.raw), !!isMatch)}</span>
         {(l.raw[0] === "{" || l.raw[0] === "[") && (
           <button
             type="button"
             className="log-copy log-json"
-            title="View formatted JSON (double-click also works)"
-            aria-label="View formatted JSON"
+            title="Inspect this line's JSON in the dock"
+            aria-label="Inspect this line's JSON in the dock"
             onClick={(e) => {
               e.stopPropagation();
-              setInspect(l);
+              setSelection({ anchor: l.seq, picks: new Set([l.seq]) });
+              publishLine(l);
             }}
           >
             <Icon name="braces" size={12} />
@@ -525,6 +526,7 @@ export function LogView({ sourceId, active }: Props) {
             onClick={() => {
               ring.clear();
               errorIndexFor(sourceId).clear();
+              insightIndexFor(sourceId).clear();
               setSelection(null);
               setMatches([]);
               useApp.getState().onBatch(sourceId, 0, 0, 0);
@@ -648,38 +650,6 @@ export function LogView({ sourceId, active }: Props) {
           <Icon name="arrow-down" size={13} /> {fmtInt(newSincePause)} new lines
         </button>
       )}
-
-      {inspect && (() => {
-        let parsed: unknown;
-        let isJson = false;
-        try {
-          parsed = JSON.parse(inspect.raw);
-          isJson = typeof parsed === "object" && parsed !== null;
-        } catch {
-          // not JSON — show the raw line wrapped
-        }
-        const pretty = isJson ? JSON.stringify(parsed, null, 2) : inspect.raw;
-        return (
-          <div className="log-inspect-overlay" onClick={() => setInspect(null)}>
-            <div className="log-inspect" role="dialog" aria-label="Line inspector" onClick={(e) => e.stopPropagation()}>
-              <div className="log-inspect-head">
-                <strong>line #{inspect.seq + 1}{isJson ? " · json" : ""}</strong>
-                <div className="log-inspect-actions">
-                  <ToolButton title={isJson ? "Copy pretty-printed JSON" : "Copy raw line"} onClick={() => void copyText(pretty, isJson ? "Pretty-printed JSON." : "Complete raw line.")}>
-                    <Icon name="copy" size={13} /> Copy
-                  </ToolButton>
-                  <ToolButton iconOnly title="Close (Esc)" aria-label="Close inspector" onClick={() => setInspect(null)}>
-                    <Icon name="x" />
-                  </ToolButton>
-                </div>
-              </div>
-              {isJson
-                ? <JsonView value={parsed} className="json-tree log-inspect-body" />
-                : <pre className="log-inspect-body raw">{inspect.raw}</pre>}
-            </div>
-          </div>
-        );
-      })()}
 
       {isCmd && live && (
         <div className="log-stdin">
