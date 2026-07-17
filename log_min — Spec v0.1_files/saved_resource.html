@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<!-- saved from url=(0253)https://2d314d81-3d0c-4ffa-98bc-a9542e9a9fee.frame.claudeusercontent.com/_f/1784222179-2f58/?__frame_t=6HZHc2DYzvtrvijXVd7eAWIC.fba2d684-d70c-4935-ad34-b9b7d546f783.01cdfcc3-d90f-46c1-8c59-b9fd2a9144fd.1784225867&__frame_v=manifest.4af8359bd414963e.json -->
+<html data-immersive-translate-page-theme="dark"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><!-- frame-runtime --><!--<base href="/_f/1784222179-2f58/">--><base href="."><script>window.__FRAME_PREAMBLE={"capabilities":{"downloads":"downloads.DUzXFHNF.js","mcp":"mcp.CLzOm9JX.js","permissions":"permissions.C9OCnDjh.js","self":"self.DqF_PxOe.js"},"transforms":"_transforms.DYk1Ltlh.js","comments":"_comments.Dp6RDy7J.js"}</script><script>(function(){"use strict";const ce="modulepreload",le=function(e){return"/"+e},ue={},x=function(t,n,u){let o=Promise.resolve();function s(f){const a=new Event("vite:preloadError",{cancelable:!0});if(a.payload=f,window.dispatchEvent(a),!a.defaultPrevented)throw f}return o.then(f=>{for(const a of f||[])a.status==="rejected"&&s(a.reason);return t().catch(s)})},K=["light","dark","system"];function G(e){if(e==null||typeof e!="object")return!1;const t=e.__frame_init;return t!=null&&typeof t=="object"}function J(e){return e!=null&&typeof e=="object"&&e.__frame_size_poke===!0}function V(e){if(e==null||typeof e!="object")return!1;const t=e.__frame_theme;if(t==null||typeof t!="object")return!1;const n=t.theme;return typeof n=="string"&&K.includes(n)}function Y(e){try{typeof reportError=="function"?reportError(e):setTimeout(()=>{throw e},0)}catch{}}function z(e){if(window===top||e.type==="auxclick"&&e.button!==1)return;const t=e.composedPath?e.composedPath():[e.target];let n=null;for(let f=0;f<t.length;f++){const a=t[f];if(a&&a.matches&&a.matches("a[href],area[href]")){n=a;break}}if(!n&&e.target&&e.target.closest&&(n=e.target.closest("a[href],area[href]")),!n)return;const u=n.getAttribute("href");if(!u)return;let o,s;try{o=new URL(u,document.baseURI),s=new URL(document.baseURI).origin}catch{return}(o.protocol==="http:"||o.protocol==="https:")&&o.origin!==s&&(e.preventDefault(),parent.postMessage({__frame_nav:!0,url:o.href},"*"))}const D={};function T(e){if(window===top)return;const t=Date.now();t-(D[e]||0)<500||(D[e]=t,parent.postMessage({__frame_engaged:!0,kind:e},"*"))}const Q=2e3,U=["wheel","touchstart","touchmove","keydown","pointerdown"];let B=0;function X(e){e.isTrusted&&(B=Date.now())}function Z(){addEventListener("click",z,!0),addEventListener("auxclick",z,!0)}function ee(){for(let e=0;e<U.length;e++)addEventListener(U[e],X,{capture:!0,passive:!0});addEventListener("scroll",e=>{e.isTrusted&&Date.now()-B<Q&&T("scroll")},{capture:!0,passive:!0}),addEventListener("pointermove",e=>{e.isTrusted&&T("pointer")},{capture:!0,passive:!0}),addEventListener("click",e=>{e.isTrusted&&T("click")},{capture:!0,passive:!0})}function te(e,t,n){const u=[...t.values()].filter(o=>o.targets.some(s=>s.startsWith(e+".")));return{wrap(o,s){const f=`${e}.${o}`,a=u.filter(i=>i.targets.includes(f));return a.length===0?(...i)=>{try{return s(...i)}catch(p){return Promise.reject(p)}}:(...i)=>{let p=i;for(const c of a){const l=c.module.parameters;if(l)try{p=l(p)}catch{return Promise.reject({code:"transform_error",id:c.id,scope:e,message:"parameters transform failed"})}}let h;try{h=s(...p)}catch(c){h=Promise.reject(c)}return h.then(c=>{for(let l=a.length-1;l>=0;l--){const m=a[l],d=m.module.returns;if(d)try{c=d(c)}catch{return n({id:m.id,scope:e,leg:"returns"}),c}}return c},c=>{for(let l=a.length-1;l>=0;l--){const m=a[l],d=m.module.throws;if(d)try{c=d(c)}catch{return n({id:m.id,scope:e,leg:"throws"}),Promise.reject(c)}}return Promise.reject(c)})}}}}function ne(e,t,n,u=()=>{}){const o=new Set(e.changes??[]),s=new Map;for(const f of o){const a=t[f];a&&s.set(f,a)}return{contract:e.contract,changes:o,flags:new Set(e.flags??[]),capabilities:e.capabilities??{},capBudgets:e.capBudgets??{},transforms:s,shellOrigin:n.shellOrigin,mount:n.mount,pipe:f=>te(f,s,u)}}(function(){const e=Object.defineProperty,t=globalThis,n=["RTCPeerConnection","webkitRTCPeerConnection","RTCDataChannel","RTCIceCandidate","RTCSessionDescription","RTCRtpSender","RTCRtpReceiver"];let u=0;for(let o=0;o<n.length;o++){const s=n[o];try{e(t,s,{value:void 0,writable:!1,configurable:!1})}catch{try{delete t[s]}catch{}try{e(t,s,{value:void 0,writable:!1,configurable:!0})}catch{}}typeof t[s]=="function"&&u++}if(u&&window!==top)try{parent.postMessage({__frame_rtc_lockdown_failed:u},"*")}catch{}})();const re=1e4,oe=Object.freeze([...window.__FRAME_PREAMBLE?.origins??["https://claude.ai","https://preview.claude.ai"]]);function se(e){for(const t of oe)if(t.endsWith(":*"))try{const n=new URL(e);if(`${n.protocol}//${n.hostname}:*`===t)return!0}catch{}else if(e===t)return!0;return!1}const R=Object.freeze({...window.__FRAME_PREAMBLE?.capabilities??{}}),A=window.__FRAME_PREAMBLE?.transforms,k=window.__FRAME_PREAMBLE?.comments,C=/^[\w.-]+\.js$/,ie=/^[a-z][a-z0-9_-]{0,63}$/;let F=null,v=null;function N(e,t,n){try{Object.defineProperty(e,t,{value:n,writable:!1,configurable:!1,enumerable:!0})}catch{try{Object.defineProperty(e,t,{value:n,writable:!1,configurable:!0,enumerable:!0})}catch{}}}let I=!1;function H(e){const t=document.documentElement;e==="light"||e==="dark"?(t.dataset.theme=e,t.style.colorScheme=e,I=!0):I&&(delete t.dataset.theme,t.style.colorScheme="",I=!1)}const E={mcp:{watchTool:{handlerArg:3}}},P=new Map;function ae(e,t){const n=P.get(e);if(!n)return;Object.assign(n.impl,t),n.impl.__settled=()=>Promise.reject({code:"capability_removed",message:`${e}: method not in this runtime`});const u=n.queue;n.queue=[];for(const o of u){const s=t[o.method];if(s)if(E[e]?.[o.method])try{o.resolve(s(...o.args))}catch{O(o,E[e][o.method].handlerArg,{code:"transform_error",message:`${e}.${o.method} rejected its arguments`})}else s(...o.args).then(o.resolve,o.reject);else{const f={code:"capability_removed",message:`${e}.${o.method} is not in this runtime`},a=E[e]?.[o.method];if(a){O(o,a.handlerArg,f);continue}o.reject(f)}}}function $(e,t){const n=P.get(e);if(!n)return;n.impl.__settled=()=>Promise.reject(t);const u=n.queue;n.queue=[];for(const o of u){const s=E[e]?.[o.method];if(s){O(o,s.handlerArg,t);continue}o.reject(t)}}function O(e,t,n){if(e.syncState?.dead)return;const u=e.args[t];typeof u=="function"&&queueMicrotask(()=>{if(!e.syncState?.dead)try{u({type:"error",error:n})}catch(o){Y(o)}})}const q=Object.getOwnPropertyDescriptor(window,"claude");if(window!==top&&!(q&&q.writable===!1)){Z(),ee();const e=q?.value??{};N(window,"claude",e);const t=i=>{const p={impl:Object.create(null),queue:[]};P.set(i,p);const h=new Proxy(p.impl,{get:(c,l)=>{if(typeof l!="string"||l==="then"||l==="toJSON"||l==="valueOf")return;if(l==="toString")return Object.prototype.toString;const m=E[i]?.[l];return m?(...d)=>{if(typeof d[m.handlerArg]!="function")throw new TypeError(`${i}.${l} requires a handler function`);const g=c[l];if(g)return g(...d);if(c.__settled){const _={dead:!1},S={args:[...d],syncState:_};return c.__settled().catch(j=>O(S,m.handlerArg,j)),()=>{_.dead=!0}}let y=null;const w={dead:!1};return p.queue.push({method:l,args:d,resolve:_=>{y=typeof _=="function"?_:null,w.dead&&y?.()},reject:()=>{},syncState:w}),()=>{w.dead=!0,y?.()}}:(...d)=>{const g=c[l]??c.__settled;return g?g(...d):new Promise((y,w)=>{p.queue.push({method:l,args:d,resolve:y,reject:w})})}},set:()=>!1});N(e,i,h)};for(const i of Object.keys(R)){if(e[i]!==void 0){N(e,i,e[i]);continue}t(i)}let n=null,u=null,o=0;const s=i=>{i.source!==parent||!se(i.origin)||G(i.data)&&(n=i.data.__frame_init,v=i.origin,removeEventListener("message",s),clearTimeout(o),u?.())};addEventListener("message",s),parent.postMessage({__frame_connect:!0},"*");const f=new Promise(i=>{u=i,o=setTimeout(()=>{removeEventListener("message",s),i()},re)}),a=document.readyState==="loading"?new Promise(i=>document.addEventListener("DOMContentLoaded",()=>i(),{once:!0})):Promise.resolve();f.then(async()=>{if(!n||!v){for(const r of P.keys())$(r,{code:"not_granted",message:"frame initialization did not arrive - capability unavailable"});return}H(n.theme);const i=v;let p=!1;addEventListener("message",r=>{if(r.source!==parent||r.origin!==i)return;V(r.data)&&H(r.data.__frame_theme.theme);const b=r.data?.__fc_mode;b&&typeof b=="object"&&!p&&k&&C.test(k)&&(p=!0,h(k).then(L=>L.install?.(i,b.on===!0)).catch(()=>{}))});const h=r=>x(()=>import("/_runtime/"+r),void 0),c=Object.keys(n.capabilities??{});for(const r of c)Object.hasOwn(R,r)||ie.test(r)&&e[r]===void 0&&(t(r),$(r,{code:"capability_disabled",message:"capability not in this runtime generation"}));const l=c.filter(r=>Object.hasOwn(R,r)).map(r=>[r,R[r]]).filter(r=>typeof r[1]=="string"&&C.test(r[1])),[m,...d]=await Promise.allSettled([A&&C.test(A)?h(A):Promise.resolve({}),...l.map(([,r])=>h(r))]),g=v;F=ne(n,m.status==="fulfilled"&&m.value?.TRANSFORMS||{},{shellOrigin:g,mount:ae},r=>parent.postMessage({__frame_cap_telemetry:r},g));const y=r=>parent.postMessage({__frame_cap_telemetry:{kind:"cap-load-error",cap:r}},g),w=F;d.forEach((r,b)=>{const L=l[b][0];if(r.status!=="fulfilled"){y(L);return}try{r.value?.install?.(w)}catch{y(L)}});for(const[r,b]of P)b.queue.length===0&&Object.keys(b.impl).length>0||$(r,{code:c.includes(r)?"capability_disabled":"not_granted",message:"capability not available in this session"});await a,parent.postMessage({__frame_ready:!0},v);let _=-1,S=0;const j=()=>{S=0;const r=Math.max(document.documentElement.scrollHeight,document.body?document.body.scrollHeight:0);r!==_&&(_=r,parent.postMessage({__frame_size:!0,h:r},g))},M=()=>{S||(S=setTimeout(j,200))},W=new ResizeObserver(M);W.observe(document.documentElement),document.body&&W.observe(document.body),document.addEventListener("load",M,!0),document.fonts?.ready.then(M,()=>{}),addEventListener("beforeprint",()=>{_=-1,j()}),M(),addEventListener("message",r=>{r.source!==parent||r.origin!==g||J(r.data)&&(_=-1,M())})})}})();</script><!-- /frame-runtime --><meta name="viewport" content="width=device-width,initial-scale=1"><style>:root{color-scheme:light}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}</style><style data-id="immersive-translate-input-injected-css"></style></head><body>
+<title>log_min — Spec v0.1</title>
+<style>
+  :root {
+    /* Bearded Arc dark — canonical _min family tokens */
+    --app-bg: #1c2433; --pane: #253043; --pane-2: #2a364d;
+    --line: rgba(17,22,31,.55); --line-2: rgba(17,22,31,.9);
+    --text: #d0d7e4; --text-2: #afbbd2; --text-3: #6d7fa3;
+    --accent: #8196b5; --accent-2: #69C3FF;
+    --green: #3CEC85; --orange: #FF955C; --red: #E35535; --purple: #F38CEC;
+    --row: rgba(255,255,255,.025); --row-alt: rgba(255,255,255,.05);
+    --font-body: "Inter", system-ui, -apple-system, sans-serif;
+    --font-mono: "Google Sans Code", "Berkeley Mono", ui-monospace, Menlo, monospace;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --app-bg: #F6F7F9; --pane: #FFFFFF; --pane-2: #F3F5F8;
+      --line: #E0E4EB; --line-2: #D4DAE4;
+      --text: #3B1D7A; --text-2: #6533C7; --text-3: #9B85CF;
+      --accent: #8B33FF; --accent-2: #0074CC;
+      --green: #1D9042; --orange: #B85C00; --red: #D61F6B; --purple: #A855F7;
+      --row: rgba(19,24,32,.018); --row-alt: rgba(19,24,32,.045);
+    }
+  }
+  :root[data-theme="dark"] {
+    --app-bg: #1c2433; --pane: #253043; --pane-2: #2a364d;
+    --line: rgba(17,22,31,.55); --line-2: rgba(17,22,31,.9);
+    --text: #d0d7e4; --text-2: #afbbd2; --text-3: #6d7fa3;
+    --accent: #8196b5; --accent-2: #69C3FF;
+    --green: #3CEC85; --orange: #FF955C; --red: #E35535; --purple: #F38CEC;
+    --row: rgba(255,255,255,.025); --row-alt: rgba(255,255,255,.05);
+  }
+  :root[data-theme="light"] {
+    --app-bg: #F6F7F9; --pane: #FFFFFF; --pane-2: #F3F5F8;
+    --line: #E0E4EB; --line-2: #D4DAE4;
+    --text: #3B1D7A; --text-2: #6533C7; --text-3: #9B85CF;
+    --accent: #8B33FF; --accent-2: #0074CC;
+    --green: #1D9042; --orange: #B85C00; --red: #D61F6B; --purple: #A855F7;
+    --row: rgba(19,24,32,.018); --row-alt: rgba(19,24,32,.045);
+  }
+
+  body {
+    background: var(--app-bg); color: var(--text);
+    font-family: var(--font-body); line-height: 1.6;
+    font-size: 15px; margin: 0;
+  }
+  main { max-width: 860px; margin: 0 auto; padding: 48px 24px 96px; }
+
+  h1 { font-size: 34px; letter-spacing: -.02em; margin: 0; font-family: var(--font-mono); }
+  h1 .cursor { color: var(--accent-2); }
+  h2 { font-size: 20px; letter-spacing: -.01em; margin: 56px 0 12px; text-wrap: balance; }
+  h3 { font-size: 15px; margin: 28px 0 8px; color: var(--text); }
+  p { margin: 10px 0; color: var(--text-2); max-width: 68ch; }
+  strong { color: var(--text); }
+  a { color: var(--accent-2); }
+
+  .eyebrow {
+    font-size: 11px; text-transform: uppercase; letter-spacing: .14em;
+    color: var(--text-3); margin-bottom: 10px;
+  }
+  .meta-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 16px; }
+  .chip {
+    font-size: 12px; padding: 3px 10px; border-radius: 99px;
+    border: 1px solid var(--line-2); color: var(--text-2); background: var(--pane);
+  }
+  .chip.acc { color: var(--accent-2); border-color: color-mix(in oklab, var(--accent-2), transparent 60%); }
+
+  .lede { font-size: 17px; color: var(--text); max-width: 62ch; margin-top: 20px; }
+
+  code, pre { font-family: var(--font-mono); font-size: 13px; }
+  code {
+    background: var(--pane); border: 1px solid var(--line);
+    border-radius: 4px; padding: 1px 5px; color: var(--text);
+  }
+  pre {
+    background: var(--pane); border: 1px solid var(--line-2);
+    border-radius: 8px; padding: 14px 16px; overflow-x: auto; line-height: 1.55;
+  }
+  pre code { background: none; border: none; padding: 0; }
+
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  .tbl-wrap { overflow-x: auto; }
+  th {
+    text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .1em;
+    color: var(--text-3); font-weight: 600; padding: 8px 12px;
+    border-bottom: 1px solid var(--line-2);
+  }
+  td { padding: 9px 12px; border-bottom: 1px solid var(--line); color: var(--text-2); vertical-align: top; }
+  tr:nth-child(even) td { background: var(--row); }
+  td:first-child { color: var(--text); white-space: nowrap; }
+  td code { white-space: nowrap; }
+
+  ul { padding-left: 20px; color: var(--text-2); }
+  li { margin: 5px 0; }
+  li::marker { color: var(--text-3); }
+
+  .kbd {
+    font-family: var(--font-mono); font-size: 12px; background: var(--pane-2);
+    border: 1px solid var(--line-2); border-bottom-width: 2px;
+    border-radius: 5px; padding: 1px 6px; color: var(--text); white-space: nowrap;
+  }
+
+  /* ── mockup ───────────────────────────── */
+  .mock {
+    border: 1px solid var(--line-2); border-radius: 10px; overflow: hidden;
+    background: var(--pane); font-family: var(--font-mono); font-size: 12px;
+    margin: 18px 0;
+  }
+  .mock-titlebar {
+    display: flex; align-items: center; gap: 6px; padding: 8px 12px;
+    background: var(--pane-2); border-bottom: 1px solid var(--line-2);
+    color: var(--text-3); font-size: 11px;
+  }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--line-2); }
+  .mock-body { display: grid; grid-template-columns: 170px 1fr 190px; min-height: 340px; }
+  @media (max-width: 720px) { .mock-body { grid-template-columns: 1fr; } .mock-side, .mock-right { display: none; } }
+  .mock-side { border-right: 1px solid var(--line); padding: 10px; color: var(--text-2); }
+  .mock-side .sec { font-size: 10px; text-transform: uppercase; letter-spacing: .1em; color: var(--text-3); margin: 8px 0 4px; }
+  .mock-side .it { padding: 3px 8px; border-radius: 5px; display: flex; gap: 6px; align-items: center; }
+  .mock-side .it.sel { background: color-mix(in oklab, var(--accent), transparent 86%); color: var(--text); }
+  .st { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+  .st.live { background: var(--green); }
+  .st.idle { background: var(--text-3); }
+  .mock-main { display: flex; flex-direction: column; min-width: 0; }
+  .mock-tabs { display: flex; border-bottom: 1px solid var(--line-2); background: var(--pane-2); }
+  .mock-tab { padding: 6px 14px; color: var(--text-3); border-right: 1px solid var(--line); }
+  .mock-tab.on { color: var(--text); background: var(--pane); box-shadow: inset 0 -2px 0 var(--accent-2); }
+  .loglines { padding: 6px 0; overflow-x: auto; flex: 1; }
+  .ll { display: flex; gap: 10px; padding: 2px 12px; white-space: nowrap; }
+  .ll:nth-child(even) { background: var(--row); }
+  .ll .t { color: var(--text-3); }
+  .lv { width: 44px; flex: none; font-weight: 700; }
+  .lv.i { color: var(--accent-2); } .lv.w { color: var(--orange); } .lv.e { color: var(--red); } .lv.d { color: var(--text-3); }
+  .ll .m { color: var(--text-2); }
+  .trace {
+    margin: 4px 12px; border: 1px solid color-mix(in oklab, var(--red), transparent 65%);
+    border-radius: 7px; background: color-mix(in oklab, var(--red), transparent 94%);
+    padding: 8px 12px;
+  }
+  .trace .hd { color: var(--red); font-weight: 700; display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .trace .cnt { color: var(--text-3); font-weight: 400; }
+  .frame { color: var(--text-3); padding-left: 14px; }
+  .frame .loc { color: var(--accent-2); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+  .frame.app .fn { color: var(--text); }
+  .mock-right { border-left: 1px solid var(--line); padding: 10px; }
+  .mock-right .sec { font-size: 10px; text-transform: uppercase; letter-spacing: .1em; color: var(--text-3); margin: 8px 0 6px; }
+  .egroup { border: 1px solid var(--line-2); border-radius: 7px; padding: 7px 9px; margin-bottom: 7px; background: var(--pane-2); }
+  .egroup .nm { color: var(--red); font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .egroup .sub { color: var(--text-3); font-size: 11px; display: flex; justify-content: space-between; gap: 8px; }
+  .mock-status {
+    display: flex; gap: 14px; padding: 6px 12px; border-top: 1px solid var(--line-2);
+    color: var(--text-3); font-size: 11px; background: var(--pane-2); flex-wrap: wrap;
+  }
+  .mock-status .ok { color: var(--green); }
+
+  /* pipeline diagram */
+  .pipe { display: flex; gap: 8px; align-items: stretch; flex-wrap: wrap; margin: 16px 0; }
+  .pipe .box {
+    background: var(--pane); border: 1px solid var(--line-2); border-radius: 8px;
+    padding: 10px 14px; font-size: 13px; flex: 1; min-width: 130px;
+  }
+  .pipe .box b { display: block; color: var(--text); font-size: 13px; }
+  .pipe .box span { color: var(--text-3); font-size: 12px; }
+  .pipe .arr { align-self: center; color: var(--text-3); }
+  .side-label { font-size: 10px; text-transform: uppercase; letter-spacing: .12em; color: var(--accent-2); }
+
+  .phase { display: grid; grid-template-columns: 64px 1fr; gap: 0 16px; margin: 14px 0; }
+  .phase .tag {
+    font-family: var(--font-mono); font-size: 12px; color: var(--accent-2);
+    padding-top: 2px; white-space: nowrap;
+  }
+  .phase .body { border-left: 2px solid var(--line-2); padding-left: 16px; padding-bottom: 8px; }
+  .phase h3 { margin-top: 0; }
+
+  .decision {
+    border: 1px solid var(--line-2); border-left: 3px solid var(--accent-2);
+    border-radius: 0 8px 8px 0; background: var(--pane); padding: 10px 16px; margin: 14px 0;
+  }
+  .decision .q { color: var(--text-3); font-size: 12px; text-transform: uppercase; letter-spacing: .08em; }
+  .decision p { margin: 6px 0 2px; }
+
+  .risk td:first-child { color: var(--orange); }
+</style>
+
+<main>
+  <p class="eyebrow">_min family · spec v0.1 · 2026-07-16 · draft for review</p>
+  <h1>log_min<span class="cursor">▌</span></h1>
+  <p class="lede">Log viewer + command runner desktop cho dev: tail file, chạy &amp; quản lý <code>npm run dev</code>/<code>mvn</code>… ngay trong app, pull log từ HTTP(S) endpoint / server remote, nhận stream qua port — highlight theo level, tự gom stack trace thành block, dedup lỗi kiểu mini-Sentry, click <code>file:line</code> mở thẳng editor, copy nhanh mọi thứ.</p>
+  <div class="meta-row">
+    <span class="chip acc">Tauri v2</span>
+    <span class="chip">React + zustand</span>
+    <span class="chip">Rust core: notify, tokio</span>
+    <span class="chip">Scaffold: copy kafka_ui_min</span>
+  </div>
+
+  <h2>1. Vấn đề &amp; thesis</h2>
+  <p>Trên macOS chưa có log viewer GUI gọn: Console.app tệ với log app tự viết, <code>lnav</code> là TUI, còn <code>tail -f | grep</code> mất trace nhiều dòng. Điểm đau lớn nhất không phải "xem log" mà là <strong>từ dòng ERROR đến file đang lỗi</strong> — mắt phải tự parse stack trace rồi gõ lại path vào editor.</p>
+  <p><strong>Thesis:</strong> log_min biến log thô thành đối tượng có cấu trúc — mỗi error là một block gom sẵn, có fingerprint, có counter, và mỗi frame là một link mở editor. Không phải text viewer, là <em>error navigator</em>.</p>
+
+  <h2>2. Mockup layout</h2>
+  <div class="mock" role="img" aria-label="Mockup giao diện log_min: sidebar sources bên trái, log view giữa với trace block, error groups bên phải">
+    <div class="mock-titlebar"><span class="dot"></span><span class="dot"></span><span class="dot"></span>&nbsp;&nbsp;log_min</div>
+    <div class="mock-body">
+      <div class="mock-side">
+        <div class="sec">Sources</div>
+        <div class="it sel"><span class="st live"></span>api-server.log</div>
+        <div class="it"><span class="st live"></span>npm run dev</div>
+        <div class="it"><span class="st live"></span>https api.prod/logs</div>
+        <div class="it"><span class="st idle"></span>udp :5514</div>
+        <div class="sec">Saved filters</div>
+        <div class="it">errors only</div>
+        <div class="it">req_id=8f3a…</div>
+      </div>
+      <div class="mock-main">
+        <div class="mock-tabs">
+          <div class="mock-tab on">api-server.log</div>
+          <div class="mock-tab">npm run dev</div>
+          <div class="mock-tab">Errors ⌘E</div>
+        </div>
+        <div class="loglines">
+          <div class="ll"><span class="t">14:02:11.301</span><span class="lv i">INFO</span><span class="m">GET /orders 200 12ms</span></div>
+          <div class="ll"><span class="t">14:02:11.480</span><span class="lv d">DEBUG</span><span class="m">cache miss key=orders:7712</span></div>
+          <div class="ll"><span class="t">14:02:11.502</span><span class="lv w">WARN</span><span class="m">retry 2/3 upstream=payments timeout=800ms</span></div>
+          <div class="ll"><span class="t">14:02:11.611</span><span class="lv e">ERROR</span><span class="m">unhandled exception in POST /orders</span></div>
+          <div class="trace">
+            <div class="hd"><span>▾ TypeError: Cannot read properties of undefined (reading 'total')</span><span class="cnt">×23 · first 13:58</span></div>
+            <div class="frame app">at <span class="fn">computeInvoice</span> (<span class="loc">src/billing/invoice.ts:87:19</span>)</div>
+            <div class="frame app">at <span class="fn">OrderService.create</span> (<span class="loc">src/orders/service.ts:41:11</span>)</div>
+            <div class="frame">at processTicksAndRejections (node:internal/…) <span style="opacity:.7">· 6 frames ẩn</span></div>
+          </div>
+          <div class="ll"><span class="t">14:02:12.009</span><span class="lv i">INFO</span><span class="m">GET /health 200 1ms</span></div>
+        </div>
+        <div class="mock-status"><span class="ok">● running</span><span>pid 4821 · up 2h 14m</span><span>node v20.11 · npm 10.2</span><span>142 380 lines</span><span>23 errors / 4 groups</span><span>drop: 0</span></div>
+      </div>
+      <div class="mock-right">
+        <div class="sec">Error groups</div>
+        <div class="egroup"><div class="nm">TypeError: reading 'total'</div><div class="sub"><span>invoice.ts:87</span><span>×23</span></div></div>
+        <div class="egroup"><div class="nm">ECONNREFUSED payments:8402</div><div class="sub"><span>client.ts:19</span><span>×7</span></div></div>
+        <div class="egroup"><div class="nm">ValidationError: qty &lt; 0</div><div class="sub"><span>schema.ts:112</span><span>×2</span></div></div>
+      </div>
+    </div>
+  </div>
+  <p>Đúng shell family: sidebar trái = sources + saved filters (⌘B), panel phải = error groups (⌘R), giữa là tab log view. Click frame <span style="color:var(--accent-2)">xanh gạch chân</span> → mở editor đúng <code>file:line:col</code>.</p>
+
+  <h2>3. Map vào convention family</h2>
+  <div class="tbl-wrap"><table>
+    <tbody><tr><th>Convention</th><th>log_min</th></tr>
+    <tr><td>Main object</td><td><strong>Source</strong> (file / command / port). Mỗi source một counter tab, giống topic của kafka_ui_min.</td></tr>
+    <tr><td>Singleton tabs</td><td><code>Errors</code> (tổng hợp mọi source), <code>Settings</code>.</td></tr>
+    <tr><td>Store</td><td>zustand <code>useApp</code>: tabs, sources, filters, error groups. localStorage namespace <code>log:</code>.</td></tr>
+    <tr><td>Persist</td><td>Sources + editor setting trong tauri-plugin-store <code>log.json</code> (như connections của redis_min).</td></tr>
+    <tr><td>Rust commands</td><td>Tất cả <code>Result&lt;T, String&gt;</code>, typed wrappers trong <code>src/lib/log.ts</code>.</td></tr>
+    <tr><td>Shortcuts</td><td><span class="kbd">⌘K</span> palette · <span class="kbd">⌘N</span> new source · <span class="kbd">⌘↵</span> pause/resume tail · <span class="kbd">⌘F</span> search · <span class="kbd">⌘B</span>/<span class="kbd">⌘R</span> panels · <span class="kbd">⌘E</span> Errors tab · <span class="kbd">⌘1-9</span> tabs · <span class="kbd">⌘W</span> close tab</td></tr>
+    <tr><td>CSS</td><td>6-file cascade từ design-systems, <code>themes.ts</code>/<code>fontScale.ts</code> byte-identical.</td></tr>
+  </tbody></table></div>
+
+  <h2>4. Kiến trúc &amp; data flow</h2>
+  <div class="pipe">
+    <div class="box"><span class="side-label">Rust</span><b>Source readers</b><span>notify tail · tokio spawn · TCP/UDP listener</span></div>
+    <div class="arr">→</div>
+    <div class="box"><span class="side-label">Rust</span><b>Line assembler</b><span>split lines, UTF-8 lossy, rotation, seq id</span></div>
+    <div class="arr">→</div>
+    <div class="box"><span class="side-label">Rust</span><b>Batcher</b><span>emit event ≤30/s, ≤500 lines/batch, drop-count khi quá tải</span></div>
+    <div class="arr">→</div>
+    <div class="box"><span class="side-label">TS worker</span><b>Parser</b><span>format detect · level · trace grouping · fingerprint</span></div>
+    <div class="arr">→</div>
+    <div class="box"><span class="side-label">React</span><b>Virtual list</b><span>ring buffer 200k dòng/source</span></div>
+  </div>
+
+  <div class="decision">
+    <div class="q">Quyết định 1 — parse ở đâu?</div>
+    <p><strong>Rust chỉ lo I/O + batching; toàn bộ parse/detect chạy trong Web Worker TS.</strong> Regex trace đổi thường xuyên lúc tune — iterate TS nhanh hơn rebuild Rust. Worker giữ main thread rảnh cho render. Nếu profiling cho thấy worker nghẽn (&gt;50k dòng/s) mới hạ parser xuống Rust — API event không đổi nên swap được.</p>
+  </div>
+  <div class="decision">
+    <div class="q">Quyết định 2 — bộ nhớ</div>
+    <p><strong>Ring buffer cố định 200 000 dòng/source, cũ nhất bị đẩy ra.</strong> Không ghi DB, không index full-text. Search = scan buffer trong worker (200k dòng regex scan ~vài chục ms). Cần lịch sử lâu hơn → v2 (SQLite optional).</p>
+  </div>
+  <div class="decision">
+    <div class="q">Quyết định 3 — backpressure</div>
+    <p>Nguồn spam nhanh hơn UI nuốt → Rust batcher giữ bounded queue, tràn thì <strong>đếm số dòng drop và hiện trên status bar</strong> ("drop: 1 204") thay vì âm thầm mất. Pause (⌘↵) thì Rust vẫn đọc, chỉ ngừng emit — resume không mất khúc giữa (trong giới hạn buffer Rust 50k).</p>
+  </div>
+
+  <h3>Data model (TS)</h3>
+  <pre><code>type Source = { id, kind: 'file'|'cmd'|'port'|'http', config, status: 'live'|'idle'|'error' }
+type Line   = { seq, sourceId, ts?, level?, raw, fmt: 'json'|'logfmt'|'plain' }
+type Trace  = { id, sourceId, lang, message, frames: Frame[], fingerprint,
+                count, firstSeq, lastSeq }
+type Frame  = { fn, path, line, col?, isApp: boolean }   // isApp = trong project root</code></pre>
+
+  <h2>5. Trace detection — phần ăn tiền</h2>
+  <p>State machine trên stream dòng: một dòng khớp <em>trace-start</em> (message exception) mở block, các dòng sau khớp <em>frame pattern</em> của cùng ngôn ngữ thì append, dòng đầu tiên không khớp thì đóng block. Parser per-language, thứ tự thử: Node/TS → Python → JVM → Rust panic → Go goroutine.</p>
+  <div class="tbl-wrap"><table>
+    <tbody><tr><th>Ngôn ngữ</th><th>Frame pattern (rút gọn)</th><th>Ghi chú</th></tr>
+    <tr><td>Node/TS</td><td><code>at fn (path:line:col)</code></td><td>Cả dạng async, anonymous, <code>node:internal</code> đánh dấu non-app.</td></tr>
+    <tr><td>Python</td><td><code>File "path", line N, in fn</code></td><td>Block bắt đầu bằng <code>Traceback (most recent call last):</code>; message ở dòng <em>cuối</em>.</td></tr>
+    <tr><td>Java/JVM</td><td><code>at pkg.Cls.m(Cls.java:N)</code></td><td>Nối <code>Caused by:</code> chains vào cùng block; map package→path cần source root config.</td></tr>
+    <tr><td>Rust</td><td><code>N: fn\n  at path:line</code></td><td>Panic + <code>RUST_BACKTRACE=1</code> format.</td></tr>
+    <tr><td>Go</td><td><code>fn(args)\n\tpath:line +0x…</code></td><td>Goroutine dump header <code>goroutine N [state]:</code>.</td></tr>
+  </tbody></table></div>
+  <ul>
+    <li><strong>Fingerprint</strong> = hash(exception type + top 3 app-frames đã normalize path). Cùng fingerprint → gom nhóm, tăng counter — panel Error groups.</li>
+    <li><strong>isApp frame:</strong> path nằm dưới project root của source (config mỗi source, auto-đoán từ path chung dài nhất). Frame non-app (node_modules, stdlib) mờ đi + collapse mặc định.</li>
+    <li><strong>Mở editor:</strong> setting toàn cục, URL scheme per editor: <code>vscode://file/P:L:C</code>, <code>cursor://file/P:L:C</code>, <code>zed://file/P:L:C</code>, JetBrains <code>idea://open?file=P&amp;line=L</code>. Path relative resolve qua project root. Fallback luôn có: copy <code>path:line</code>.</li>
+  </ul>
+
+  <h2>6. Sources</h2>
+  <div class="tbl-wrap"><table>
+    <tbody><tr><th>Kind</th><th>Rust impl</th><th>Edge cases phải xử</th></tr>
+    <tr><td>File tail</td><td><code>notify</code> watch + seek đọc phần mới</td><td>Rotation (inode đổi → reopen), truncate (size giảm → seek 0), file chưa tồn tại (chờ xuất hiện), dòng cuối chưa có <code>\n</code>.</td></tr>
+    <tr><td>Command</td><td><code>tokio::process</code> spawn qua <code>$SHELL -lc</code></td><td>Merge stdout+stderr (tag riêng), kill process tree khi đóng tab/app, exit code hiện trên status.</td></tr>
+    <tr><td>Port</td><td><code>tokio</code> TCP accept nhiều conn / UDP socket</td><td>Bind fail (port bận) → error rõ, mỗi TCP conn tag <code>peer</code>, frame theo newline.</td></tr>
+    <tr><td>HTTP(S)</td><td><code>reqwest</code> streaming / polling</td><td>Auto-detect: SSE (<code>text/event-stream</code>) và chunked stream đọc liên tục; response thường → poll interval + <code>Range</code>/offset chỉ lấy phần mới. Custom headers (Bearer token), toggle "allow self-signed" per source, reconnect + backoff, lần đầu chỉ lấy tail N KB cuối.</td></tr>
+  </tbody></table></div>
+
+  <h3>Pull log từ server remote (IP)</h3>
+  <ul>
+    <li><strong>Server expose log qua HTTP/SSE</strong> → source HTTP(S) ở trên, dán URL + token là chạy.</li>
+    <li><strong>Server chỉ có SSH</strong> → không cần source kind riêng: command runner chạy <code>ssh user@ip tail -F /var/log/app.log</code> là xong — kill tree, restart, trace detection đều hoạt động y hệt. ⌘K palette có sẵn template "SSH tail…" điền host/path. <em>ponytail: SSH first-class source (saved host, key picker) chỉ làm ở v2 nếu template thấy thiếu.</em></li>
+    <li><strong>Server push được</strong> → port listener: server <code>tail -F x.log | nc &lt;máy-mình&gt; 5514</code>.</li>
+  </ul>
+
+  <h3>Command source = runner đúng nghĩa, không chỉ log source</h3>
+  <p>Tab command là nơi <em>chạy và quản</em> dev process, thay cửa sổ terminal thả rông:</p>
+  <ul>
+    <li><strong>Lifecycle:</strong> nút ▶ Start / ⏹ Stop / ⟳ Restart ngay trên tab toolbar. Stop = kill cả process tree (killpg). Exit → banner "exited code 1 · 14:22:03 · ⟳ Restart", log giữ nguyên để đọc lý do chết.</li>
+    <li><strong>Config per command:</strong> cwd (folder picker), env vars thêm/override, shell mặc định <code>$SHELL -lc</code> để ăn PATH từ nvm/sdkman.</li>
+    <li><strong>Info bar</strong> (status bar của tab): trạng thái ● running/exited, <code>pid</code>, uptime, exit code, và <strong>runtime versions</strong> — detect từ lệnh: <code>npm/node</code> → <code>node -v</code>+<code>npm -v</code>, <code>mvn</code> → <code>mvn -v</code> (Java version), <code>python</code>, <code>go</code>, <code>cargo</code>… chạy một lần lúc start trong cùng cwd (đúng version nvm local), cache lại.</li>
+    <li><strong>Project version:</strong> đọc <code>package.json</code> / <code>pom.xml</code> / <code>Cargo.toml</code> trong cwd → hiện tên + version project cạnh tên tab.</li>
+    <li><strong>Stdin nhỏ:</strong> ô input gửi dòng vào stdin (đủ cho REPL prompt y/N). Không phải terminal emulator — không PTY, không TUI app (vim, htop). Ghi rõ giới hạn này trong UI.</li>
+  </ul>
+
+  <h2>7. Copy nhanh &amp; UX "không khó chịu"</h2>
+  <h3>Copy — một cú click cho mọi thứ</h3>
+  <ul>
+    <li>Hover dòng log → nút copy mờ hiện bên phải: copy raw line. Chọn nhiều dòng (drag/⇧click) → <span class="kbd">⌘C</span> copy đúng phần chọn, giữ nguyên thứ tự, không lẫn cột UI (timestamp/level chỉ copy khi bật "copy full").</li>
+    <li>Trace block: nút <strong>Copy trace</strong> — nguyên stack đã de-collapse, sạch, paste thẳng vào issue/chat. Error group panel: copy message + trace + count.</li>
+    <li>Frame: click mở editor, <span class="kbd">⌥click</span> copy <code>path:line</code>.</li>
+    <li><span class="kbd">⌘⇧C</span> = copy trace gần nhất đang nhìn thấy — lỗi vừa nổ, một phím là có trong clipboard.</li>
+    <li>Copy xong: toast nhỏ "Copied" góc dưới, tự tắt 1.5s, không animation màu mè.</li>
+  </ul>
+  <h3>UX principles — thứ làm log viewer khó chịu &amp; đối sách</h3>
+  <div class="tbl-wrap"><table>
+    <tbody><tr><th>Khó chịu kinh điển</th><th>log_min làm</th></tr>
+    <tr><td>Auto-scroll giật cướp chuột</td><td>Follow-mode tắt <em>ngay</em> khi scroll lên; nút "↓ 1 204 dòng mới" nổi góc dưới để quay lại. Không bao giờ kéo user xuống khi đang đọc.</td></tr>
+    <tr><td>Search/filter làm mất chỗ đang đọc</td><td>Filter không xoá — chỉ dim/ẩn có anchor; tắt filter trả lại đúng scroll position.</td></tr>
+    <tr><td>Chớp giật khi log dồn dập</td><td>Batch render theo frame; text không reflow (mono, tabular); không animation trên đường log chảy.</td></tr>
+    <tr><td>Modal / confirm spam</td><td>Không confirm khi stop process (restart được mà). Dialog duy nhất: tạo/sửa source, theo <code>openDialog</code> promise của family.</td></tr>
+    <tr><td>Mất state khi mở lại</td><td>Sources, filters, tab layout persist; mở app là thấy lại đúng chỗ hôm qua. Command <em>không</em> tự chạy lại — hiện nút ▶ (tránh app tự spawn process ngầm).</td></tr>
+    <tr><td>Wrap dòng dài phá mắt đọc</td><td>Mặc định không wrap + scroll ngang; toggle wrap per-tab <span class="kbd">⌥Z</span>.</td></tr>
+  </tbody></table></div>
+
+  <h2>8. Phasing</h2>
+  <div class="phase"><div class="tag">M1</div><div class="body">
+    <h3>Skeleton chạy được</h3>
+    <p>Copy scaffold kafka_ui_min. File tail + command runner (▶/⏹/⟳, pid, exit code, kill tree), virtual list, level coloring, follow-mode không giật, ⌘F search, copy line/selection. Chưa có trace detection. <strong>Dùng được hằng ngày ngay từ đây.</strong></p>
+  </div></div>
+  <div class="phase"><div class="tag">M2</div><div class="body">
+    <h3>Error navigator</h3>
+    <p>Trace state machine (Node + Python trước — hai format phổ nhất), trace block UI, fingerprint + Error groups panel, Copy trace / ⌘⇧C, click-to-editor (VS Code trước, setting configurable ngay sau), runtime versions + project version trên info bar. Đây là lúc app khác biệt với <code>tail -f</code>.</p>
+  </div></div>
+  <div class="phase"><div class="tag">M3</div><div class="body">
+    <h3>Đủ scope v1</h3>
+    <p>Port listener (TCP/UDP), HTTP(S) source (SSE/chunked/polling + auth header), JVM + Rust + Go parsers, JSON-lines pretty expand, logfmt, saved filters, regex highlight rules tự thêm, Errors tab tổng hợp, SSH tail template trong ⌘K.</p>
+  </div></div>
+  <div class="phase"><div class="tag">v2+</div><div class="body">
+    <h3>Để sau, có chủ đích</h3>
+    <p>SQLite history, docker/k8s source riêng (M1 đã cover qua spawn <code>docker logs -f</code>), source-map resolve cho JS minified, multi-source merge view theo timestamp, syslog protocol thật (RFC 5424).</p>
+  </div></div>
+
+  <h2>9. Rủi ro &amp; câu hỏi mở</h2>
+  <div class="tbl-wrap"><table class="risk">
+    <tbody><tr><th>Rủi ro</th><th>Đối sách</th></tr>
+    <tr><td>Virtual list khựng khi log dồn dập</td><td>Batch render theo frame (requestAnimationFrame), follow-mode chỉ render viewport cuối; benchmark 10k dòng/s trước khi build UI đẹp.</td></tr>
+    <tr><td>Regex trace false positive/negative</td><td>Corpus test: thu thập ~30 trace thật mỗi ngôn ngữ làm fixture, test parser thuần TS không cần Tauri.</td></tr>
+    <tr><td>JVM package → file path không suy ra được</td><td>Chấp nhận: frame JVM không resolve được thì chỉ copy, không link. Ghi rõ trong UI.</td></tr>
+    <tr><td>Process tree không chết theo app</td><td>Kill process group (setsid + killpg), test kỹ với <code>npm run dev</code> (spawn con cháu).</td></tr>
+    <tr><td>Timestamp đa format</td><td>V1 không parse ts thành số — hiển thị nguyên văn, sort theo seq. Parse ts chỉ cần cho merge view (v2).</td></tr>
+  </tbody></table></div>
+  <p><strong>Đã chốt:</strong> tên <code>log_min</code> · buffer 200k (default, không config ở v1) · M2 ưu tiên Node + Python.</p>
+  <ul>
+    <li>HTTP source: server thật của anh expose log qua endpoint dạng gì (SSE? plain GET file?) — quyết định format nào implement kỹ nhất.</li>
+  </ul>
+
+  <h2>10. Không làm (YAGNI)</h2>
+  <ul>
+    <li>Không full-text index / database — buffer scan đủ nhanh cho 200k dòng.</li>
+    <li>Không log shipping, không agent, không remote — local dev tool thuần.</li>
+    <li>Không AI phân tích lỗi — fingerprint regex đủ cho dedup.</li>
+    <li>Không plugin system cho parser — thêm ngôn ngữ = thêm file regex trong repo.</li>
+  </ul>
+</main>
+
+</body></html>
