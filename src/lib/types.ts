@@ -2,11 +2,19 @@ import type { IconName } from "../ui/Icon";
 
 export type SourceKind = "file" | "cmd" | "http";
 
+/** persisted sidebar folder grouping sources (tauri-plugin-store log.json) */
+export interface CollectionDef {
+  id: string;
+  name: string;
+}
+
 /** persisted definition of a source (tauri-plugin-store log.json) */
 export interface SourceDef {
   id: string;
   name: string;
   kind: SourceKind;
+  /** sidebar collection membership; undefined = root level */
+  collectionId?: string;
   /** file: absolute path to tail */
   path?: string;
   /** cmd: shell command run via $SHELL -lc */
@@ -89,7 +97,7 @@ export interface StatusPayload {
   startedAt?: number;
 }
 
-export type TabKind = "welcome" | "source" | "source-edit" | "settings";
+export type TabKind = "welcome" | "source" | "source-edit" | "settings" | "error-trace";
 
 export interface TabDef {
   id: string;
@@ -97,6 +105,8 @@ export interface TabDef {
   title: string;
   icon: IconName;
   iconClass: string;
-  /** kind === "source" */
+  /** kind === "source" | "error-trace" */
   sourceId?: string;
+  /** kind === "error-trace": the ErrorGroup this tab traces */
+  fingerprint?: string;
 }

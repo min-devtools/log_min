@@ -16,6 +16,20 @@ describe("detectLevel", () => {
     expect(detectLevel("2026-01-01 WARN something")).toBe("warn");
     expect(detectLevel("plain line")).toBeUndefined();
   });
+
+  it("the first level tag wins — payload words don't override the line's tag", () => {
+    expect(detectLevel("2026-07-17 [DEBUG] from org.apache.http.wire - << \"x\",\"error_code\":200")).toBe("debug");
+    expect(detectLevel('[INFO] response {"message":"ERROR ignored"}')).toBe("info");
+    expect(detectLevel("2026-01-01 ERROR while DEBUG dump")).toBe("err");
+  });
+
+  it("a word cut in half by the 200-char scan window is not a level", () => {
+    // pad so the scan boundary lands right after "error" inside "error_code"
+    const prefix = "2026-07-17 15:44:06,643 resId=none - << ";
+    const pad = "x".repeat(200 - prefix.length - '"error'.length);
+    const line = `${prefix}${pad}"error_code":200,"status":"OK"`;
+    expect(detectLevel(line)).toBeUndefined();
+  });
 });
 
 function feed(lines: string[]): LogLine[] {

@@ -28,6 +28,8 @@ export interface ErrorSnapshot {
 export class ErrorIndex {
   private groups = new Map<string, ErrorGroup>();
   private open: { traceId: number; lines: LogLine[] } | null = null;
+  /** fired once per committed occurrence — the ErrorArchive links snippets through this */
+  onOccurrence?: (occurrence: ErrorGroup) => void;
 
   feed(line: LogLine): boolean {
     if (line.traceId !== undefined) {
@@ -88,6 +90,7 @@ export class ErrorIndex {
         ? { ...occurrence, count: existing.count + 1, firstSeq: existing.firstSeq, firstAt: existing.firstAt }
         : occurrence,
     );
+    this.onOccurrence?.(occurrence);
   }
 }
 

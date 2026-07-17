@@ -17,6 +17,21 @@ export class Ring {
   totalSeen = 0;
   /** approx bytes of retained raw text (2 bytes/char is close enough) */
   private bytes = 0;
+  /** retained-line budget — user-tunable per source, RING_CAP is the ceiling */
+  private cap = RING_CAP;
+
+  get capacity(): number {
+    return this.cap;
+  }
+
+  setCap(n: number): void {
+    this.cap = Math.max(100, Math.min(RING_CAP, Math.floor(n) || RING_CAP));
+    const cut = this.buf.length - this.cap;
+    if (cut > 0) {
+      for (let i = 0; i < cut; i++) this.bytes -= this.buf[i].raw.length * 2;
+      this.buf.splice(0, cut);
+    }
+  }
 
   get length(): number {
     return this.buf.length;
@@ -36,8 +51,10 @@ export class Ring {
     }
     // batches are ≤500 lines — spread is safe
     this.buf.push(...lines);
-    // evict oldest: whichever cap (lines or bytes) is exceeded first
-    let cut = this.buf.length > RING_CAP ? this.buf.length - RING_CAP + EVICT_CHUNK : 0;
+    // evict oldest: whichever cap (lines or bytes) is exceeded first.
+    // overshoot is bounded by cap/4 so small user caps aren't wiped in one splice
+    const overshoot = Math.min(EVICT_CHUNK, Math.floor(this.cap / 4));
+    let cut = this.buf.length > this.cap ? this.buf.length - this.cap + overshoot : 0;
     let freed = 0;
     for (let i = 0; i < cut; i++) freed += this.buf[i].raw.length * 2;
     while (this.bytes - freed > RING_BYTE_CAP && cut < this.buf.length) {
@@ -102,6 +119,12 @@ export function bufferFor(sourceId: string): Ring {
   let r = buffers.get(sourceId);
   if (!r) {
     r = new Ring();
+    // the toolbar's retention choice binds from the first ingested line,
+    // even before the source's tab has ever been opened
+    if (typeof localStorage !== "undefined") {
+      const stored = Number(localStorage.getItem(`log:cap:${sourceId}`));
+      if (stored > 0) r.setCap(stored);
+    }
     buffers.set(sourceId, r);
   }
   return r;

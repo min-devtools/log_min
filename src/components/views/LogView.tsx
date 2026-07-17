@@ -1,11 +1,12 @@
-import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
+import { Combobox } from "../../ui/Combobox";
 import { ToolButton } from "../../ui/ToolButton";
 import { Icon } from "../../ui/Icon";
 import { runtimeOf, useApp } from "../../store";
 import { bufferFor } from "../../lib/ring";
-import { copyTextForLines, errorIndexFor } from "../../lib/errors";
+import { copyTextForLines } from "../../lib/errors";
 import { insightIndexFor } from "../../lib/insight";
 import { rawLogText, tokenizeLogLine } from "../../lib/logPresentation";
 import { estimateLogRowHeight } from "../../lib/wrapLayout";
@@ -21,6 +22,19 @@ function useRowHeight(): number {
 
 function fmtInt(n: number): string {
   return n.toLocaleString("en-US").replace(/,/g, " ");
+}
+
+/** 5000 → "5k"; non-round values stay plain numbers */
+function fmtCapValue(n: number): string {
+  return n % 1000 === 0 ? `${n / 1000}k` : String(n);
+}
+
+/** "5k" | "5K" | "5000" → 5000; anything unparsable → null */
+function parseCap(text: string): number | null {
+  const m = /^\s*(\d+(?:\.\d+)?)\s*k?\s*$/i.exec(text);
+  if (!m) return null;
+  const n = /k\s*$/i.test(text) ? Number(m[1]) * 1000 : Number(m[1]);
+  return Number.isFinite(n) && n > 0 ? Math.round(n) : null;
 }
 
 interface Props {
@@ -55,17 +69,60 @@ export function LogView({ sourceId, active }: Props) {
   const [query, setQuery] = useState("");
   const [caseSensitive, setCaseSensitive] = useState(false);
   const [regexMode, setRegexMode] = useState(false);
+  /** live filter: the view shows only matching lines, updated per batch */
+  const [filterMode, setFilterMode] = useState(false);
   const [matches, setMatches] = useState<number[]>([]);
   const [matchIdx, setMatchIdx] = useState(0);
   const [flashSeq, setFlashSeq] = useState<number | null>(null);
   const [stdinValue, setStdinValue] = useState("");
+  const [capValue, setCapValue] = useState("");
   const searchInputRef = useRef<HTMLInputElement>(null);
 
+  // per-source retained-line budget — applied to the ring on mount, persisted on commit
+  useEffect(() => {
+    const stored = parseCap(localStorage.getItem(`log:cap:${sourceId}`) ?? "");
+    if (stored) ring.setCap(stored);
+    setCapValue(fmtCapValue(ring.capacity));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sourceId]);
+
+  const commitCap = useCallback(
+    (text: string) => {
+      const parsed = parseCap(text);
+      if (parsed) {
+        ring.setCap(parsed);
+        localStorage.setItem(`log:cap:${sourceId}`, String(ring.capacity));
+        useApp.getState().onBatch(sourceId, 0, 0, 0); // repaint the (possibly evicted) window
+      }
+      setCapValue(fmtCapValue(ring.capacity));
+    },
+    [ring, sourceId],
+  );
+
+  const clearBuffer = useCallback(() => {
+    // captured errors (index + archive) survive by design — only the raw buffer resets
+    ring.clear();
+    insightIndexFor(sourceId).clear();
+    setSelection(null);
+    setMatches([]);
+    useApp.getState().onBufferCleared(sourceId);
+  }, [ring, sourceId]);
+
+  // ponytail: full rescan per batch keyed on version — incremental append if 200k rings lag
+  const filterQ = searchOpen && filterMode ? query.trim() : "";
+  const viewIdx = useMemo(
+    () => (filterQ ? ring.search(filterQ, { caseSensitive, regex: regexMode }, ring.length) : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [filterQ, caseSensitive, regexMode, version, ring],
+  );
+  const viewLen = viewIdx ? viewIdx.length : ring.length;
+  const lineAt = (i: number) => ring.at(viewIdx ? viewIdx[i] : i);
+
   const wrappedVirtualizer = useVirtualizer({
-    count: ring.length,
+    count: viewLen,
     getScrollElement: () => scrollRef.current,
-    estimateSize: (index) => estimateLogRowHeight(ring.at(index)?.raw ?? "", viewportWidth, uiFontSize),
-    getItemKey: (index) => ring.at(index)?.seq ?? index,
+    estimateSize: (index) => estimateLogRowHeight(lineAt(index)?.raw ?? "", viewportWidth, uiFontSize),
+    getItemKey: (index) => lineAt(index)?.seq ?? index,
     overscan: 12,
     enabled: wrap && active,
     useFlushSync: false,
@@ -98,11 +155,11 @@ export function LogView({ sourceId, active }: Props) {
     if (!el || wrap) return;
     const first = Math.max(0, Math.floor(el.scrollTop / rowH) - OVERSCAN);
     const last = Math.min(
-      ring.length,
+      viewLen,
       Math.ceil((el.scrollTop + el.clientHeight) / rowH) + OVERSCAN,
     );
     setRange((r) => (r[0] === first && r[1] === last ? r : [first, last]));
-  }, [ring, rowH, wrap]);
+  }, [viewLen, rowH, wrap]);
 
   // new batch: stick to bottom when following, always refresh the window
   useEffect(() => {
@@ -148,14 +205,16 @@ export function LogView({ sourceId, active }: Props) {
       requestAnimationFrame(computeRange);
       return;
     }
-    wrappedVirtualizer.measure();
+    // no manual virtualizer.measure() here: the virtualizer's own ResizeObserver
+    // already re-measured the rendered rows when the viewport reflowed; clearing
+    // its cache afterwards would strand every row on stale width estimates (gaps)
     if (followRef.current && ring.length) {
       requestAnimationFrame(() => {
         const el = scrollRef.current;
         if (el) el.scrollTop = el.scrollHeight;
       });
     }
-  }, [wrap, viewportWidth, uiFontSize, computeRange, ring, wrappedVirtualizer]);
+  }, [wrap, viewportWidth, uiFontSize, computeRange, ring]);
 
   // ⌘↵ from the app shell toggles follow on the active tab
   const runNonce = useApp((s) => s.runNonce);
@@ -181,7 +240,7 @@ export function LogView({ sourceId, active }: Props) {
 
   const jumpToIndex = (i: number) => {
     const el = scrollRef.current;
-    const line = ring.at(i);
+    const line = lineAt(i); // view index — identical to ring index outside filter mode
     if (!el || !line) return;
     setFollow(false);
     pausedAtRef.current = ring.totalSeen;
@@ -199,13 +258,17 @@ export function LogView({ sourceId, active }: Props) {
     jumpToIndex(matches[next]);
   };
 
-  // debounce re-search while typing
+  // debounce re-search while typing; filter mode owns the view instead
   useEffect(() => {
     if (!searchOpen) return;
+    if (filterMode) {
+      setMatches([]);
+      return;
+    }
     const t = window.setTimeout(() => runSearch(query), 150);
     return () => window.clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, searchOpen, caseSensitive, regexMode]);
+  }, [query, searchOpen, caseSensitive, regexMode, filterMode]);
 
   // error dock clicked a group — scroll to the line and flash it
   const jumpTarget = useApp((s) => s.jumpTarget);
@@ -214,7 +277,8 @@ export function LogView({ sourceId, active }: Props) {
     if (!active || !jumpTarget || jumpTarget.nonce === jumpSeen.current) return;
     if (jumpTarget.sourceId !== sourceId) return;
     jumpSeen.current = jumpTarget.nonce;
-    const idx = ring.indexOfSeq(jumpTarget.seq);
+    const ringIdx = ring.indexOfSeq(jumpTarget.seq);
+    const idx = viewIdx && ringIdx >= 0 ? viewIdx.indexOf(ringIdx) : ringIdx;
     if (idx >= 0) jumpToIndex(idx);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jumpTarget, active, sourceId]);
@@ -262,15 +326,27 @@ export function LogView({ sourceId, active }: Props) {
         setSearchOpen(true);
         requestAnimationFrame(() => searchInputRef.current?.select());
       }
-      if (mod && e.key.toLowerCase() === "c" && selection && !inInput) {
+      // highlighted text wins over line picks — let the native copy handle it
+      if (mod && e.key.toLowerCase() === "c" && selection && !inInput && !window.getSelection()?.toString()) {
         e.preventDefault();
         void copySelection();
       }
-      if (e.key === "Escape" && searchOpen && !inInput) setSearchOpen(false);
+      // literal Ctrl+L (not ⌘L) clears the buffer, terminal-style; errors are kept
+      if (e.ctrlKey && !e.metaKey && e.key.toLowerCase() === "l" && !inInput) {
+        e.preventDefault();
+        clearBuffer();
+      }
+      if (e.key === "Escape" && !inInput) {
+        if (searchOpen) setSearchOpen(false);
+        else if (selection) {
+          setSelection(null);
+          publishLine(null);
+        }
+      }
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [active, selection, copySelection, searchOpen]);
+  }, [active, selection, copySelection, searchOpen, clearBuffer, publishLine]);
 
   const onRowClick = (l: LogLine, e: React.MouseEvent) => {
     // dragging to select text also fires click on mouseup — keep the selection
@@ -306,8 +382,10 @@ export function LogView({ sourceId, active }: Props) {
     );
   }
 
-  const total = ring.length;
-  const lines = ring.slice(range[0], range[1]);
+  const total = viewLen;
+  const lines = viewIdx
+    ? viewIdx.slice(range[0], range[1]).map((i) => ring.at(i)).filter((l): l is LogLine => !!l)
+    : ring.slice(range[0], range[1]);
   const picks = selection?.picks;
   const selectedCount = picks?.size ?? 0;
   const newSincePause = follow ? 0 : Math.max(0, ring.totalSeen - pausedAtRef.current);
@@ -519,19 +597,22 @@ export function LogView({ sourceId, active }: Props) {
           >
             <Icon name="search" />
           </ToolButton>
-          <ToolButton
-            iconOnly
-            title="Clear buffer"
-            aria-label="Clear buffer"
-            onClick={() => {
-              ring.clear();
-              errorIndexFor(sourceId).clear();
-              insightIndexFor(sourceId).clear();
-              setSelection(null);
-              setMatches([]);
-              useApp.getState().onBufferCleared(sourceId);
-            }}
-          >
+          <div className="log-cap" title="Lines kept in the buffer (100–200k). Type a number or pick a preset; 5k = 5000.">
+            <Combobox
+              value={capValue}
+              freeText
+              options={[
+                { value: "1k", hint: "1 000 lines" },
+                { value: "5k", hint: "5 000 lines" },
+                { value: "10k", hint: "10 000 lines" },
+                { value: "50k", hint: "50 000 lines" },
+                { value: "100k", hint: "100 000 lines" },
+                { value: "200k", hint: "200 000 lines" },
+              ]}
+              onChange={commitCap}
+            />
+          </div>
+          <ToolButton iconOnly title="Clear buffer (Ctrl+L) — captured errors are kept" aria-label="Clear buffer" onClick={clearBuffer}>
             <Icon name="trash" />
           </ToolButton>
           <ToolButton iconOnly title="Edit source" aria-label="Edit source" onClick={() => editSource(sourceId)}>
@@ -546,7 +627,13 @@ export function LogView({ sourceId, active }: Props) {
           <input
             ref={searchInputRef}
             value={query}
-            placeholder={regexMode ? "Find in buffer (regex)…" : "Find in buffer…"}
+            placeholder={
+              filterMode
+                ? "Filter — only matching lines, live…"
+                : regexMode
+                  ? "Find in buffer (regex)…"
+                  : "Find in buffer…"
+            }
             spellCheck={false}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => {
@@ -555,8 +642,26 @@ export function LogView({ sourceId, active }: Props) {
             }}
           />
           <span className="log-search-count" title={regexInvalid ? "Invalid regular expression" : undefined}>
-            {regexInvalid ? "bad regex" : matches.length ? `${matchIdx + 1}/${matches.length}` : query ? "0" : ""}
+            {regexInvalid
+              ? "bad regex"
+              : viewIdx
+                ? `${fmtInt(viewLen)} line${viewLen === 1 ? "" : "s"}`
+                : matches.length
+                  ? `${matchIdx + 1}/${matches.length}`
+                  : query
+                    ? "0"
+                    : ""}
           </span>
+          <ToolButton
+            iconOnly
+            title="Live filter — show only matching lines, including new output"
+            aria-label="Live filter"
+            aria-pressed={filterMode}
+            className={`log-search-case ${filterMode ? "active" : ""}`}
+            onClick={() => setFilterMode((v) => !v)}
+          >
+            <Icon name="filter" size={13} />
+          </ToolButton>
           <ToolButton
             iconOnly
             title="Match case"
@@ -577,10 +682,10 @@ export function LogView({ sourceId, active }: Props) {
           >
             .*
           </ToolButton>
-          <ToolButton iconOnly title="Previous match (⇧↵)" aria-label="Previous match" onClick={() => jumpMatch(-1)}>
+          <ToolButton iconOnly disabled={filterMode} title="Previous match (⇧↵)" aria-label="Previous match" onClick={() => jumpMatch(-1)}>
             <Icon name="arrow-left" />
           </ToolButton>
-          <ToolButton iconOnly title="Next match (↵)" aria-label="Next match" onClick={() => jumpMatch(1)}>
+          <ToolButton iconOnly disabled={filterMode} title="Next match (↵)" aria-label="Next match" onClick={() => jumpMatch(1)}>
             <Icon name="arrow-right" />
           </ToolButton>
           <ToolButton iconOnly title="Close (Esc)" aria-label="Close search" onClick={() => setSearchOpen(false)}>
@@ -616,7 +721,7 @@ export function LogView({ sourceId, active }: Props) {
         >
           {wrap
             ? wrappedItems.map((item) => {
-                const line = ring.at(item.index);
+                const line = lineAt(item.index);
                 return line
                   ? renderLogLine(
                       line,
@@ -633,7 +738,9 @@ export function LogView({ sourceId, active }: Props) {
         </div>
         {total === 0 && (
           <div className="empty-note" style={{ padding: 24 }}>
-            {live
+            {viewIdx
+              ? `No lines match “${filterQ}”. New matching output will appear here.`
+              : live
               ? "Waiting for output…"
               : isCmd
                 ? "Press Start to run the command."

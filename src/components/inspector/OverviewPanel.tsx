@@ -6,6 +6,8 @@ import { bufferFor } from "../../lib/ring";
 import type { SourceDef } from "../../lib/types";
 import { runtimeOf, useApp } from "../../store";
 import { Icon } from "../../ui/Icon";
+import { Kv } from "../../ui/Kv";
+import { ToolButton } from "../../ui/ToolButton";
 
 const fmtInt = (n: number) => n.toLocaleString("en-US").replace(/,/g, " ");
 
@@ -21,9 +23,10 @@ export function OverviewPanel({ sourceId, source, groups, onShowError }: {
   sourceId: string;
   source?: SourceDef;
   groups: ErrorGroup[];
-  onShowError: (fingerprint: string) => void;
+  onShowError: (group: ErrorGroup) => void;
 }) {
   const rt = useApp((s) => runtimeOf(s, sourceId));
+  const clearErrors = useApp((s) => s.clearErrors);
   useApp((s) => s.bufVersions[sourceId] ?? 0); // re-render per batch
   const [, setTick] = useState(0);
   // 1s tick keeps uptime, rates, and 60s windows moving while the source is silent
@@ -40,37 +43,41 @@ export function OverviewPanel({ sourceId, source, groups, onShowError }: {
 
   return (
     <div className="inspector-scroll overview-dock">
-      <section className="dock-section">
-        <h4>Source</h4>
-        <div className="dock-kv">
-          <span>state</span><strong className={`dock-state-${rt.status}`}>{rt.status}</strong>
-          <span>kind</span><strong>{source?.kind ?? "—"}</strong>
-          <span>target</span><strong className="dock-target" title={target}>{target}</strong>
-          {rt.pid !== undefined && <><span>pid</span><strong>{rt.pid}</strong></>}
-          {rt.exitCode !== undefined && rt.exitCode !== null && <><span>exit code</span><strong>{rt.exitCode}</strong></>}
-          {rt.status === "live" && rt.startedAt !== undefined && <><span>uptime</span><strong>{fmtUptime(now - rt.startedAt)}</strong></>}
-        </div>
+      <section className="dock-section panel">
+        <h3>Source</h3>
+        <Kv label="state"><span className={`dock-state-${rt.status}`}>{rt.status}</span></Kv>
+        <Kv label="kind">{source?.kind ?? "—"}</Kv>
+        <Kv label="target"><span title={target}>{target}</span></Kv>
+        {rt.pid !== undefined && <Kv label="pid">{rt.pid}</Kv>}
+        {rt.exitCode !== undefined && rt.exitCode !== null && <Kv label="exit code">{rt.exitCode}</Kv>}
+        {rt.status === "live" && rt.startedAt !== undefined && <Kv label="uptime">{fmtUptime(now - rt.startedAt)}</Kv>}
       </section>
 
-      <section className="dock-section">
-        <h4>Throughput</h4>
-        <div className="dock-kv">
-          <span>total lines</span><strong>{fmtInt(rt.lines)}</strong>
-          <span>retained</span><strong>{fmtInt(ring.length)}</strong>
-          <span>dropped</span><strong>{fmtInt(rt.dropped)}</strong>
-          <span>lines/s</span><strong>{insight.linesPerSec.toFixed(1)}</strong>
-        </div>
+      <section className="dock-section panel">
+        <h3>Throughput</h3>
+        <Kv label="total lines">{fmtInt(rt.lines)}</Kv>
+        <Kv label="retained">{fmtInt(ring.length)}</Kv>
+        <Kv label="dropped">{fmtInt(rt.dropped)}</Kv>
+        <Kv label="lines/s">{insight.linesPerSec.toFixed(1)}</Kv>
       </section>
 
-      <section className="dock-section">
-        <h4>Signals</h4>
-        <div className="dock-kv">
-          {/* rt.errors counts occurrences (traces group to 1); errors60 counts err-leveled lines */}
-          <span>errors</span>
-          <strong>{fmtInt(rt.errors)}{insight.errors60 ? ` · ${fmtInt(insight.errors60)} in 60s` : ""}</strong>
-          <span>warnings</span>
-          <strong>{fmtInt(insight.totalWarns)}{insight.warns60 ? ` · ${fmtInt(insight.warns60)} in 60s` : ""}</strong>
+      <section className="dock-section panel">
+        <div className="dock-section-head">
+          <h3>Signals</h3>
+          {(rt.errors > 0 || groups.length > 0) && (
+            <ToolButton
+              iconOnly
+              title="Clear captured errors from memory"
+              aria-label="Clear captured errors"
+              onClick={() => clearErrors(sourceId)}
+            >
+              <Icon name="trash" size={13} />
+            </ToolButton>
+          )}
         </div>
+        {/* rt.errors counts occurrences (traces group to 1); errors60 counts err-leveled lines */}
+        <Kv label="errors">{fmtInt(rt.errors)}{insight.errors60 ? ` · ${fmtInt(insight.errors60)} in 60s` : ""}</Kv>
+        <Kv label="warnings">{fmtInt(insight.totalWarns)}{insight.warns60 ? ` · ${fmtInt(insight.warns60)} in 60s` : ""}</Kv>
         {recent.length > 0 && (
           <div className="dock-signal-list" aria-label="Recent error groups">
             {recent.map((group) => {
@@ -80,8 +87,8 @@ export function OverviewPanel({ sourceId, source, groups, onShowError }: {
                   key={group.fingerprint}
                   type="button"
                   className="dock-signal"
-                  title="Open in the Errors tab"
-                  onClick={() => onShowError(group.fingerprint)}
+                  title="Open a trace tab for this error"
+                  onClick={() => onShowError(group)}
                 >
                   <span className="dock-signal-count">{group.count}×</span>
                   <span className="dock-signal-copy">

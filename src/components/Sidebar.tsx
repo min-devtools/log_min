@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Badge } from "../ui/Badge";
 import { ContextMenu, type ContextMenuItem } from "../ui/ContextMenu";
 import { newSourceId, runtimeOf, useApp } from "../store";
-import type { SourceDef, TabKind } from "../lib/types";
+import type { CollectionDef, SourceDef, TabKind } from "../lib/types";
 import { Icon, type IconName } from "../ui/Icon";
 
 const WORKSPACE_NAV: { kind: TabKind; icon: IconName; iconClass: string; label: string; meta?: string }[] = [
@@ -13,12 +13,25 @@ const WORKSPACE_NAV: { kind: TabKind; icon: IconName; iconClass: string; label: 
 const statusTone = (status: string): "green" | "red" | "idle" =>
   status === "live" ? "green" : status === "error" ? "red" : "idle";
 
+type DragItem = { kind: "collection"; id: string } | { kind: "source"; id: string };
+
+const COLLAPSED_KEY = "log:collapsed-collections";
+
 export function Sidebar() {
   const [filter, setFilter] = useState("");
   const [menu, setMenu] = useState<{ x: number; y: number; id: string } | null>(null);
+  const [colMenu, setColMenu] = useState<{ x: number; y: number; id: string } | null>(null);
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => {
+    try { return new Set(JSON.parse(localStorage.getItem(COLLAPSED_KEY) ?? "[]") as string[]); }
+    catch { return new Set(); }
+  });
+  const [dragging, setDragging] = useState<DragItem | null>(null);
+  const [dragOverCollection, setDragOverCollection] = useState<string | null>(null);
+  const [dropIndicator, setDropIndicator] = useState<string | null>(null);
   const {
-    sources, runtimes, tabs, activeTabId, openTab, openSourceTab,
+    sources, collections, runtimes, tabs, activeTabId, openTab, openSourceTab,
     editSource, deleteSource, startSource, stopSource, openDialog, saveSource, showToast,
+    createCollection, renameCollection, deleteCollection, reorderCollection, moveSource,
   } = useApp();
 
   const activeTab = tabs.find((t) => t.id === activeTabId);
@@ -50,6 +63,28 @@ export function Sidebar() {
     });
   };
 
+  const newCollection = async () => {
+    const name = await openDialog({ kind: "prompt", title: "New collection", confirmLabel: "Create" });
+    if (name?.trim()) createCollection(name.trim());
+  };
+
+  const renameCol = async (c: CollectionDef) => {
+    const name = await openDialog({ kind: "prompt", title: "Rename collection", defaultValue: c.name, confirmLabel: "Rename" });
+    if (name != null && name.trim() && name.trim() !== c.name) renameCollection(c.id, name.trim());
+  };
+
+  const removeCol = (c: CollectionDef) => {
+    void openDialog({
+      kind: "confirm",
+      title: "Delete collection?",
+      message: `"${c.name}" is removed. Its sources move back to the root list.`,
+      confirmLabel: "Delete",
+      danger: true,
+    }).then((ok) => {
+      if (ok !== null) deleteCollection(c.id);
+    });
+  };
+
   // WebKit (Tauri macOS) doesn't focus rows on click, so per-node onKeyDown won't fire.
   // Listen globally and act on the active source; stay out of inputs and open dialogs.
   useEffect(() => {
@@ -69,10 +104,123 @@ export function Sidebar() {
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSource]);
+
+  // activating a source's tab unfolds its collection so the highlighted row is visible
+  useEffect(() => {
+    const cid = activeSource?.collectionId;
+    if (!cid) return;
+    setCollapsed((current) => {
+      if (!current.has(cid)) return current;
+      const next = new Set(current);
+      next.delete(cid);
+      localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...next]));
+      return next;
+    });
+  }, [activeSource?.id, activeSource?.collectionId]);
+
   const q = filter.trim().toLowerCase();
-  const shown = sources.filter(
-    (s) => !q || s.name.toLowerCase().includes(q) || (s.path ?? s.command ?? "").toLowerCase().includes(q),
-  );
+  const matches = (s: SourceDef) =>
+    !q || s.name.toLowerCase().includes(q) || (s.path ?? s.command ?? "").toLowerCase().includes(q);
+
+  const toggleCollection = (id: string) => {
+    setCollapsed((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...next]));
+      return next;
+    });
+  };
+
+  // ── drag & drop (HTML5, same scheme as requests_min) ─────────────────────
+  const startDrag = (event: React.DragEvent, item: DragItem) => {
+    setDragging(item);
+    event.stopPropagation();
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("application/json", JSON.stringify(item));
+  };
+  const endDrag = () => {
+    setDragging(null);
+    setDropIndicator(null);
+    setDragOverCollection(null);
+  };
+  const parseDrop = (event: React.DragEvent): DragItem | null => {
+    try { return JSON.parse(event.dataTransfer.getData("application/json")) as DragItem; }
+    catch { return null; }
+  };
+  /** id of the source right after `s` in the global array (insert-after target) */
+  const afterOf = (s: SourceDef): string | null =>
+    sources[sources.findIndex((x) => x.id === s.id) + 1]?.id ?? null;
+
+  const onDropOnSource = (event: React.DragEvent, target: SourceDef) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setDropIndicator(null);
+    setDragOverCollection(null);
+    const item = parseDrop(event);
+    if (!item || item.kind !== "source" || item.id === target.id) return;
+    const before = event.clientY < event.currentTarget.getBoundingClientRect().top + (event.currentTarget as HTMLElement).offsetHeight / 2;
+    moveSource(item.id, target.collectionId, before ? target.id : afterOf(target));
+  };
+
+  const onDropOnCollection = (event: React.DragEvent, collectionId: string) => {
+    event.preventDefault();
+    setDragOverCollection(null);
+    setDropIndicator(null);
+    const item = parseDrop(event);
+    if (!item) return;
+    if (item.kind === "collection") {
+      const row = (event.target as HTMLElement).closest(".collection-node")?.getBoundingClientRect();
+      if (!row || event.clientY < row.top + row.height / 2) reorderCollection(item.id, collectionId);
+      else reorderCollection(item.id, collections[collections.findIndex((c) => c.id === collectionId) + 1]?.id ?? null);
+      return;
+    }
+    moveSource(item.id, collectionId, null);
+  };
+
+  const onDropOnRoot = (event: React.DragEvent) => {
+    event.preventDefault();
+    setDropIndicator(null);
+    setDragOverCollection(null);
+    const item = parseDrop(event);
+    if (item?.kind === "source") moveSource(item.id, undefined, null);
+  };
+
+  const sourceRow = (s: SourceDef) => {
+    const rt = runtimeOf({ runtimes }, s.id);
+    return (
+      <div
+        key={s.id}
+        className={`nav-item request-node ${activeTab?.sourceId === s.id ? "active" : ""} ${dropIndicator === `src:${s.id}` ? "drop-prefix" : ""}`}
+        title={s.path ?? s.command}
+        draggable
+        onDragStart={(e) => startDrag(e, { kind: "source", id: s.id })}
+        onDragEnd={endDrag}
+        onDragOver={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          if (dragging?.kind === "source" && dragging.id !== s.id) setDropIndicator(`src:${s.id}`);
+        }}
+        onDragLeave={() => setDropIndicator((d) => (d === `src:${s.id}` ? null : d))}
+        onDrop={(e) => onDropOnSource(e, s)}
+        onClick={() => openSourceTab(s.id)}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          setMenu({ x: e.clientX, y: e.clientY, id: s.id });
+        }}
+      >
+        <Icon
+          name={s.kind === "cmd" ? "terminal" : s.kind === "http" ? "globe" : "docs"}
+          className={rt.status === "live" ? "soft-green" : undefined}
+        />
+        <span>{s.name}</span>
+        <Badge tone={statusTone(rt.status)}>
+          {rt.status === "live" ? "live" : rt.status === "error" ? "error" : "idle"}
+        </Badge>
+      </div>
+    );
+  };
+
+  const rootSources = sources.filter((s) => !s.collectionId || !collections.some((c) => c.id === s.collectionId));
 
   const menuSource = menu ? sources.find((s) => s.id === menu.id) : undefined;
   const menuRt = menu ? runtimeOf({ runtimes }, menu.id) : undefined;
@@ -92,7 +240,18 @@ export function Sidebar() {
         { icon: "pencil", label: "Edit source", onClick: () => editSource(menuSource.id) },
         { icon: "pencil", label: "Rename", kbd: "⌘E", onClick: () => void renameSrc(menuSource) },
         { icon: "copy", label: "Duplicate", kbd: "⌘D", onClick: () => duplicateSrc(menuSource) },
+        ...(menuSource.collectionId
+          ? [{ icon: "x" as IconName, label: "Remove from collection", onClick: () => moveSource(menuSource.id, undefined, null) }]
+          : []),
         { icon: "trash", label: "Remove", kbd: "⌫", onClick: () => removeSrc(menuSource) },
+      ]
+    : [];
+
+  const menuCollection = colMenu ? collections.find((c) => c.id === colMenu.id) : undefined;
+  const colMenuItems: ContextMenuItem[] = menuCollection
+    ? [
+        { icon: "pencil", label: "Rename", onClick: () => void renameCol(menuCollection) },
+        { icon: "trash", label: "Delete (keep sources)", onClick: () => removeCol(menuCollection) },
       ]
     : [];
 
@@ -132,30 +291,66 @@ export function Sidebar() {
           >
             <Icon name="plus" className="soft-blue" /><span>New Source</span><span className="kbd">⌘N</span>
           </div>
-          {shown.map((s) => {
-            const rt = runtimeOf({ runtimes }, s.id);
+          <div className="nav-item" onClick={() => void newCollection()}>
+            <Icon name="folder-plus" className="soft-orange" /><span>New Collection</span><span />
+          </div>
+
+          {collections.map((c) => {
+            const members = sources.filter((s) => s.collectionId === c.id);
+            const shown = members.filter((s) => matches(s) || c.name.toLowerCase().includes(q));
+            if (q && shown.length === 0 && !c.name.toLowerCase().includes(q)) return null;
+            const isCollapsed = !q && collapsed.has(c.id);
             return (
               <div
-                key={s.id}
-                className={`nav-item ${activeTab?.sourceId === s.id ? "active" : ""}`}
-                title={s.path ?? s.command}
-                onClick={() => openSourceTab(s.id)}
-                onContextMenu={(e) => {
+                key={c.id}
+                className={`collection-tree ${isCollapsed ? "collapsed" : ""} ${dragOverCollection === c.id ? "drop-target" : ""}`}
+                onDragOver={(e) => {
                   e.preventDefault();
-                  setMenu({ x: e.clientX, y: e.clientY, id: s.id });
+                  if (dragging?.kind === "collection") setDropIndicator(`col:${c.id}`);
+                  else if (dragOverCollection !== c.id) setDragOverCollection(c.id);
                 }}
+                onDragLeave={(e) => {
+                  if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                    setDragOverCollection(null);
+                    setDropIndicator(null);
+                  }
+                }}
+                onDrop={(e) => onDropOnCollection(e, c.id)}
               >
-                <Icon
-                  name={s.kind === "cmd" ? "terminal" : s.kind === "http" ? "globe" : "docs"}
-                  className={rt.status === "live" ? "soft-green" : undefined}
-                />
-                <span>{s.name}</span>
-                <Badge tone={statusTone(rt.status)}>
-                  {rt.status === "live" ? "live" : rt.status === "error" ? "error" : "idle"}
-                </Badge>
+                <button
+                  type="button"
+                  className={`nav-item collection-node ${dropIndicator === `col:${c.id}` ? "drop-prefix" : ""}`}
+                  draggable
+                  aria-expanded={!isCollapsed}
+                  onDragStart={(e) => startDrag(e, { kind: "collection", id: c.id })}
+                  onDragEnd={endDrag}
+                  onClick={() => toggleCollection(c.id)}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    setColMenu({ x: e.clientX, y: e.clientY, id: c.id });
+                  }}
+                >
+                  <Icon name="chevron-down" className="collection-chevron" size={13} />
+                  <span>{c.name}</span>
+                  <Badge>{members.length || ""}</Badge>
+                </button>
+                <div className="collection-requests">
+                  {shown.map(sourceRow)}
+                  {members.length === 0 && <div className="empty-note collection-empty">Drag sources here.</div>}
+                </div>
               </div>
             );
           })}
+
+          <div
+            className="root-sources"
+            onDragOver={(e) => {
+              if (dragging?.kind === "source") e.preventDefault();
+            }}
+            onDrop={onDropOnRoot}
+          >
+            {rootSources.filter(matches).map(sourceRow)}
+          </div>
           {!sources.length && (
             <div className="empty-note">No sources yet. Add a file to tail or a command to run.</div>
           )}
@@ -163,6 +358,9 @@ export function Sidebar() {
       </div>
       {menu && (
         <ContextMenu x={menu.x} y={menu.y} items={menuItems} onClose={() => setMenu(null)} />
+      )}
+      {colMenu && (
+        <ContextMenu x={colMenu.x} y={colMenu.y} items={colMenuItems} onClose={() => setColMenu(null)} />
       )}
     </aside>
   );

@@ -2,17 +2,17 @@ import type { Frame, LogLevel, LogLine } from "./types";
 
 // ─── level detection (M1: cheap regex; the parser worker lands in M2) ────
 
-const RE_ERR = /\b(ERROR|ERR|FATAL|PANIC|SEVERE|CRITICAL)\b/i;
-const RE_WARN = /\b(WARN|WARNING)\b/i;
-const RE_DEBUG = /\b(DEBUG|TRACE|VERBOSE)\b/i;
-const RE_INFO = /\b(INFO|NOTICE)\b/i;
+/** first level keyword in the head wins — a payload word can't override the line's own tag */
+const RE_LEVEL =
+  /\b(?:(ERROR|ERR|FATAL|PANIC|SEVERE|CRITICAL)|(WARN|WARNING)|(DEBUG|TRACE|VERBOSE)|(INFO|NOTICE))\b/i;
 /** pino/bunyan numeric levels: 10 trace · 20 debug · 30 info · 40 warn · 50 error · 60 fatal */
 const RE_JSON_LEVEL = /"level"\s*:\s*(\d+)/;
 
 export function detectLevel(raw: string): LogLevel | undefined {
   // scan only the head of the line — levels live near the front, and long
-  // lines (json blobs) shouldn't cost a full regex pass
-  const head = raw.length > 200 ? raw.slice(0, 200) : raw;
+  // lines (json blobs) shouldn't cost a full regex pass. Drop a token the
+  // window cut in half: "error_code" sliced to "error" is not a level.
+  const head = raw.length > 200 ? raw.slice(0, 200).replace(/[\w$]+$/, "") : raw;
   if (head.charCodeAt(0) === 0x7b /* { */) {
     const m = RE_JSON_LEVEL.exec(head);
     if (m) {
@@ -20,11 +20,9 @@ export function detectLevel(raw: string): LogLevel | undefined {
       return n >= 50 ? "err" : n >= 40 ? "warn" : n >= 30 ? "info" : "debug";
     }
   }
-  if (RE_ERR.test(head)) return "err";
-  if (RE_WARN.test(head)) return "warn";
-  if (RE_DEBUG.test(head)) return "debug";
-  if (RE_INFO.test(head)) return "info";
-  return undefined;
+  const m = RE_LEVEL.exec(head);
+  if (!m) return undefined;
+  return m[1] ? "err" : m[2] ? "warn" : m[3] ? "debug" : "info";
 }
 
 /**

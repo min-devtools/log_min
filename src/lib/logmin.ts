@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { bufferFor } from "./ring";
+import { archiveFor } from "./errorArchive";
 import { errorIndexFor } from "./errors";
 import { insightIndexFor } from "./insight";
 import { detectLevel, TraceAssembler } from "./trace";
@@ -87,6 +88,10 @@ export async function initLogEvents(): Promise<void> {
     });
     bufferFor(sourceId).push(tagged);
     insightIndexFor(sourceId).feed(tagged, Date.now());
+    // archive first so ErrorIndex commits can tag snippets that already hold their lines
+    const archive = archiveFor(sourceId);
+    for (const line of tagged) archive.feed(line);
+    errorIndex.onOccurrence = (occ) => archive.tagFingerprint(occ.fingerprint, occ.lastSeq);
     let errorIndexChanged = false;
     for (const line of tagged) errorIndexChanged = errorIndex.feed(line) || errorIndexChanged;
     let errors = 0;

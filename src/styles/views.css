@@ -1010,6 +1010,9 @@ body.light .docs-preview-editor { color: var(--editor-fg); }
   background: color-mix(in oklab, var(--status-success), transparent 93%);
 }
 
+/* keep the root list droppable even when every source sits in a collection */
+.root-sources { min-height: 10px; display: grid; }
+
 .log-scroll {
   flex: 1;
   overflow: auto;
@@ -1038,7 +1041,7 @@ body.light .docs-preview-editor { color: var(--editor-fg); }
   gap: 8px;
   padding: 0 8px 0 12px;
   font-family: var(--font-mono);
-  font-size: 0.8462rem;
+  font-size: 0.9231rem;
   white-space: pre;
   color: var(--text-secondary);
   cursor: default;
@@ -1228,6 +1231,18 @@ body.light .docs-preview-editor { color: var(--editor-fg); }
   white-space: nowrap;
 }
 
+.error-dock-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-default);
+  color: var(--text-muted);
+  font: 0.7692rem/1 var(--font-mono);
+}
+
 .error-dock {
   height: auto;
   min-height: 0;
@@ -1264,12 +1279,11 @@ body.light .docs-preview-editor { color: var(--editor-fg); }
 .error-dock-empty strong { color: var(--text-primary); font-size: 0.9231rem; font-weight: 650; }
 .error-dock-empty p { max-width: 28ch; margin: 0; font-size: 0.8462rem; line-height: 1.55; }
 
+/* the detail pane moved to the error-trace tab — the list owns the whole dock now */
 .error-group-list {
-  flex: 0 1 auto;
-  max-height: 36%;
+  flex: 1;
   min-height: 0;
   overflow: auto;
-  border-bottom: 1px solid var(--border-default);
 }
 
 .error-group {
@@ -1344,270 +1358,6 @@ body.light .docs-preview-editor { color: var(--editor-fg); }
   white-space: nowrap;
 }
 
-.error-detail {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow: auto;
-  background: var(--surface-editor);
-}
-
-.error-detail-head {
-  position: sticky;
-  top: 0;
-  z-index: 2;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 8px 10px;
-  border-bottom: 1px solid var(--border-default);
-  background: color-mix(in oklab, var(--surface-raised), transparent 4%);
-  backdrop-filter: blur(8px);
-}
-
-.error-detail-head strong { color: var(--text-primary); font: 0.7692rem/1.2 var(--font-mono); }
-.error-detail-head .tool-btn { height: 26px; padding: 0 8px; font-size: 0.7692rem; }
-.error-detail-actions { display: flex; align-items: center; gap: 6px; flex: none; }
-
-.error-detail-when {
-  margin: 0;
-  padding: 6px 12px;
-  border-bottom: 1px solid var(--border-default);
-  color: var(--text-muted);
-  font: 0.7692rem/1.4 var(--font-mono);
-  font-variant-numeric: tabular-nums;
-}
-
-.error-raw { margin: 10px; }
-
-.error-raw summary {
-  cursor: pointer;
-  color: var(--text-muted);
-  font-size: 0.7692rem;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  user-select: none;
-}
-
-.error-raw summary:hover { color: var(--text-primary); }
-
-.error-raw pre {
-  margin: 6px 0 0;
-  padding: 8px 10px;
-  max-height: 200px;
-  overflow: auto;
-  border: 1px solid var(--border-default);
-  border-radius: 6px;
-  background: var(--surface-panel);
-  color: var(--text-secondary);
-  font: 0.7692rem/1.5 var(--font-mono);
-  white-space: pre;
-}
-
-.error-detail-message {
-  margin: 0;
-  padding: 12px;
-  border-bottom: 1px solid color-mix(in oklab, var(--status-danger), transparent 78%);
-  color: var(--status-danger);
-  background: color-mix(in oklab, var(--status-danger), transparent 94%);
-  font: 600 0.8462rem/1.5 var(--font-mono);
-  overflow-wrap: anywhere;
-}
-
-.error-origin {
-  display: grid;
-  gap: 10px;
-  margin: 10px;
-  padding: 10px;
-  border: 1px solid color-mix(in oklab, var(--accent-secondary), transparent 68%);
-  border-radius: 8px;
-  background: color-mix(in oklab, var(--accent-secondary), transparent 95%);
-  box-shadow: inset 2px 0 0 var(--accent-secondary);
-}
-
-.error-origin-copy { min-width: 0; display: grid; gap: 4px; }
-
-.error-origin-copy > span {
-  color: var(--text-muted);
-  font-size: 0.6923rem;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.error-origin-copy strong {
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  overflow: hidden;
-  color: var(--accent-secondary);
-  font: 650 0.9231rem/1.25 var(--font-mono);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.error-origin-copy strong em {
-  flex: none;
-  padding: 2px 5px;
-  border: 1px solid color-mix(in oklab, var(--accent-secondary), transparent 68%);
-  border-radius: 4px;
-  color: var(--text-primary);
-  background: color-mix(in oklab, var(--accent-secondary), transparent 90%);
-  font-size: 0.7692rem;
-  font-style: normal;
-  font-variant-numeric: tabular-nums;
-}
-
-.error-origin-copy small,
-.error-origin-copy code {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.error-origin-copy small { color: var(--text-secondary); font: 0.7692rem/1.3 var(--font-mono); }
-.error-origin-copy code { color: var(--text-muted); font: 0.6923rem/1.3 var(--font-mono); }
-
-.error-origin-actions { display: flex; align-items: center; gap: 6px; }
-.error-origin-actions .tool-btn { height: 26px; padding: 0 8px; font-size: 0.7692rem; }
-.error-origin-open { color: var(--accent-secondary); border-color: color-mix(in oklab, var(--accent-secondary), transparent 60%); }
-
-.error-stack-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 8px 10px 6px;
-  border-top: 1px solid var(--border-default);
-  color: var(--text-muted);
-}
-
-.error-stack-head strong { color: var(--text-secondary); font-size: 0.7692rem; font-weight: 650; }
-.error-stack-head span { font: 0.6923rem/1.2 var(--font-mono); font-variant-numeric: tabular-nums; }
-
-.error-frame-list { display: grid; padding-bottom: 12px; }
-
-.error-frame {
-  position: relative;
-  width: 100%;
-  display: flex;
-  align-items: stretch;
-  border-bottom: 1px solid color-mix(in oklab, var(--border-default), transparent 35%);
-  background: transparent;
-  color: var(--text-secondary);
-}
-
-.error-frame:hover { background: var(--surface-hover); }
-
-.error-frame.app { box-shadow: inset 2px 0 0 color-mix(in oklab, var(--accent-secondary), transparent 36%); }
-
-.error-frame-main {
-  min-width: 0;
-  flex: 1;
-  display: grid;
-  grid-template-columns: 24px minmax(0, 1fr);
-  gap: 8px;
-  padding: 8px 30px 8px 10px;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.error-frame-main:focus-visible { outline: 2px solid var(--accent-secondary); outline-offset: -2px; }
-
-.error-frame-index {
-  padding-top: 2px;
-  color: var(--text-muted);
-  font: 0.6923rem/1.2 var(--font-mono);
-  font-variant-numeric: tabular-nums;
-}
-
-.error-frame-content { min-width: 0; display: grid; gap: 3px; }
-
-.error-frame-source {
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.error-frame-source strong {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--accent-secondary);
-  font: 650 0.8462rem/1.25 var(--font-mono);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.error-frame-source > span {
-  flex: none;
-  padding: 1px 5px;
-  border: 1px solid color-mix(in oklab, var(--accent-secondary), transparent 72%);
-  border-radius: 4px;
-  color: var(--text-primary);
-  background: color-mix(in oklab, var(--accent-secondary), transparent 92%);
-  font: 650 0.72rem/1.25 var(--font-mono);
-  font-variant-numeric: tabular-nums;
-}
-
-.error-frame.runtime .error-frame-source strong,
-.error-frame.runtime .error-frame-source > span,
-.error-frame.runtime .error-frame-function { color: var(--text-muted); }
-
-.error-frame.runtime .error-frame-source > span {
-  border-color: var(--border-default);
-  background: var(--surface-raised);
-}
-
-.error-frame-function {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--text-secondary);
-  font: 0.7692rem/1.3 var(--font-mono);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.error-frame-path {
-  overflow: hidden;
-  color: var(--text-muted);
-  font: 0.6923rem/1.3 var(--font-mono);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.error-frame-copy {
-  position: absolute;
-  top: 50%;
-  right: 7px;
-  width: 22px;
-  height: 22px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  border: 1px solid transparent;
-  border-radius: 5px;
-  background: transparent;
-  color: var(--text-muted);
-  cursor: copy;
-  opacity: 0.68;
-  transform: translateY(-50%);
-}
-
-.error-frame-copy:hover {
-  border-color: var(--border-default);
-  background: var(--surface-raised);
-  color: var(--text-primary);
-  opacity: 1;
-}
-
-.error-frame-copy:focus-visible { outline: 2px solid var(--accent-secondary); outline-offset: 1px; opacity: 1; }
 
 /* source-edit footer — plain flex row, NOT .settings-row (that's a grid) */
 .source-edit-actions {
@@ -1738,7 +1488,7 @@ body.light .docs-preview-editor { color: var(--editor-fg); }
 .settings-row.stack .settings-control { grid-column: 2 / -1; width: 100%; }
 .settings-row.stack .settings-select { max-width: none; flex: 1; }
 
-/* JSON tab in the right dock — Monaco fills the pane, scrolls itself */
+/* JSON tab in the right dock — native rendering avoids editor-layout failures */
 .json-dock { display: flex; flex-direction: column; padding: 0; overflow: hidden; }
 .json-dock-head {
   display: flex;
@@ -1751,21 +1501,60 @@ body.light .docs-preview-editor { color: var(--editor-fg); }
   font: 0.7692rem/1.4 var(--font-mono);
   flex: none;
 }
-.json-dock-editor { flex: 1; min-height: 0; }
-.json-dock-raw {
+.json-tree-view {
   flex: 1;
-  margin: 0;
-  padding: 10px;
+  min-height: 0;
   overflow: auto;
-  font: 0.8462rem/1.6 var(--font-mono);
-  color: var(--text-2);
-  white-space: pre-wrap;
-  word-break: break-all;
+  font: 0.9231rem/1.6 var(--font-mono);
+  color: var(--text-primary);
+  background: var(--editor-bg);
+  user-select: text;
+  cursor: text;
 }
 
-/* base.css disables user-select globally — re-enable for log text + json raw */
+/* base.css disables user-select globally — re-enable for log text + JSON tree */
 .log-raw { user-select: text; cursor: text; }
-.json-dock-raw { user-select: text; cursor: text; }
+.json-tree-content { min-width: max-content; padding: 8px 10px 12px 4px; }
+.json-tree-line {
+  min-height: 20px;
+  display: flex;
+  align-items: baseline;
+  padding-right: 10px;
+  white-space: pre;
+}
+.json-tree-toggle,
+.json-tree-toggle-spacer {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  margin-right: 1px;
+}
+.json-tree-toggle {
+  align-self: center;
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  color: var(--text-muted);
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+}
+.json-tree-toggle:hover { color: var(--text-primary); background: var(--surface-hover); }
+.json-tree-toggle svg { transition: transform 100ms ease; }
+.json-tree-toggle[aria-expanded="true"] svg { transform: rotate(90deg); }
+.json-tree-view .tok-str { color: var(--green); }
+.json-tree-view .tok-num { color: var(--blue-2); }
+.json-tree-view .tok-bool { color: var(--purple); }
+.json-tree-view .tok-key { color: var(--blue); }
+.json-tree-view .tok-br-0 { color: var(--orange); }
+.json-tree-view .tok-br-1 { color: var(--purple); }
+.json-tree-view .tok-br-2 { color: var(--blue-2); }
+.json-tree-colon,
+.json-tree-punc { color: var(--text-muted); }
+.json-tree-ellipsis { padding: 0 3px; color: var(--text-muted); }
+.json-tree-summary { padding-left: 8px; color: var(--text-muted); font-size: 0.6923rem; font-style: italic; }
+.json-dock-empty { min-height: 0; }
 
 /* ── integrated right dock: Overview / Inspect panels ─────────────────── */
 
@@ -1777,48 +1566,119 @@ body.light .docs-preview-editor { color: var(--editor-fg); }
   gap: 16px;
 }
 
-.dock-section h4 {
-  margin: 0 0 6px;
-  font-size: 0.7692rem;
-  font-weight: 650;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-muted);
+.inspect-dock { gap: 14px; }
+
+.dock-section-head {
+  min-height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
 }
 
-.dock-kv {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 4px 12px;
-  font-size: 0.8462rem;
-}
+.dock-section-head h3 { margin: 0; }
+.dock-section-head .tool-btn { height: 26px; padding: 0 8px; }
 
-.dock-kv > span { color: var(--text-muted); }
-.dock-kv > strong { font-weight: 500; color: var(--text-primary); overflow-wrap: anywhere; }
+/* card look comes from the design system's .panel; the scroll gap owns spacing */
+.dock-section.panel { margin-bottom: 0; }
 
-.dock-target {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
+/* rows use the design system's .kv (via ui/Kv); last row hugs the card edge */
+.dock-section .kv:last-of-type { border-bottom: 0; padding-bottom: 0; }
 
 .dock-state-live { color: var(--accent-secondary); }
 .dock-state-error { color: var(--status-danger); }
 
 .dock-actions { display: flex; gap: 6px; flex-wrap: wrap; }
 
-.inspect-raw {
-  margin: 0;
-  padding: 8px 10px;
+.inspect-field-count {
+  color: var(--text-muted);
+  font: 0.72rem/1 var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.inspect-search {
+  height: 30px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 8px;
+  margin-bottom: 7px;
+  color: var(--text-muted);
+  border: 1px solid var(--border-default);
+  border-radius: 7px;
+  background: var(--editor-bg);
+}
+
+.inspect-search:focus-within { border-color: var(--accent-primary); }
+.inspect-search input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  outline: 0;
+  color: var(--text-primary);
+  background: transparent;
+  font: 0.7692rem/1.3 var(--font-mono);
+}
+
+.inspect-search button {
+  width: 20px;
+  height: 20px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  color: var(--text-muted);
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.inspect-field-list {
+  overflow: hidden;
   border: 1px solid var(--border-default);
   border-radius: 8px;
   background: var(--editor-bg);
-  font-family: var(--font-mono);
-  font-size: 0.8077rem;
-  line-height: 1.5;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  user-select: text;
+}
+
+.inspect-field {
+  min-height: 38px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 5px 4px 8px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.inspect-pair { cursor: pointer; }
+
+.inspect-field:last-child { border-bottom: 0; }
+.inspect-field:hover { background: var(--surface-hover); }
+
+.inspect-field-main {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.inspect-field-main code,
+.inspect-field-main span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.inspect-field-main code { color: var(--text-primary); font: 0.9231rem/1.3 var(--font-mono); }
+.inspect-field-main span { color: var(--text-muted); font: 0.8462rem/1.3 var(--font-mono); }
+
+.inspect-field-actions { display: flex; gap: 2px; }
+.inspect-field-actions .tool-btn { width: 24px; height: 24px; padding: 0; }
+
+.inspect-no-fields {
+  padding: 16px 10px;
+  color: var(--text-muted);
+  font-size: 0.7692rem;
+  text-align: center;
 }
 
 .dock-signal-list {
@@ -1861,3 +1721,144 @@ body.light .docs-preview-editor { color: var(--editor-fg); }
 }
 
 .dock-signal-copy small { font-size: 0.7308rem; color: var(--text-muted); }
+
+/* ── error trace tab + retention input ─────────────────────────────────── */
+
+.log-cap { width: 84px; flex: none; }
+
+.log-cap .combobox input {
+  width: 100%;
+  padding: 4px 8px;
+  font-family: var(--font-mono);
+  font-size: 0.7692rem;
+  text-align: right;
+}
+
+/* the preset list needs more room than its 84px trigger */
+.log-cap .combobox-list { min-width: 168px; right: 0; left: auto; }
+
+.trace-view { overflow: hidden; }
+
+.trace-scroll {
+  height: 100%;
+  overflow: auto;
+  padding: 16px 20px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.trace-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.trace-head-copy h2 {
+  margin: 0 0 4px;
+  font-size: 1rem;
+  font-weight: 650;
+  color: var(--status-danger);
+  overflow-wrap: anywhere;
+}
+
+.trace-head-copy p { margin: 0; font-size: 0.8462rem; color: var(--text-muted); }
+
+.trace-origin {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 8px 10px;
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  background: var(--surface-raised);
+  font-size: 0.8462rem;
+}
+
+.trace-origin > span { color: var(--text-muted); }
+.trace-origin > code { color: var(--text-secondary); font-size: 0.7692rem; overflow-wrap: anywhere; }
+
+.trace-stack summary {
+  cursor: pointer;
+  font-size: 0.8462rem;
+  color: var(--text-secondary);
+  user-select: none;
+}
+
+.trace-frame-list { display: flex; flex-direction: column; gap: 2px; margin-top: 8px; }
+
+.trace-frame {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  width: 100%;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+  font-size: 0.8077rem;
+}
+
+.trace-frame:hover { background: var(--row-alt, rgba(127, 127, 127, 0.1)); }
+.trace-frame em { font-style: normal; color: var(--text-muted); font-size: 0.7308rem; }
+.trace-frame strong { font-weight: 550; }
+.trace-frame span { color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.trace-frame.runtime { opacity: 0.62; }
+
+.trace-occurrence-list { display: flex; flex-direction: column; gap: 10px; }
+.trace-occurrence-list h3 { margin: 6px 0 0; font-size: 0.8462rem; font-weight: 650; color: var(--text-secondary); }
+
+.trace-occurrence {
+  border: 1px solid var(--border-default);
+  border-radius: 9px;
+  overflow: hidden;
+}
+
+.trace-occurrence-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border-default);
+  background: var(--surface-raised);
+  font-size: 0.7692rem;
+}
+
+.trace-occurrence-head strong { font-weight: 600; }
+.trace-occurrence-head span { flex: 1; color: var(--text-muted); }
+
+.trace-snippet {
+  margin: 0;
+  padding: 8px 0;
+  background: var(--editor-bg);
+  font-family: var(--font-mono);
+  font-size: 0.9231rem;
+  line-height: 1.5;
+  overflow-x: auto;
+  user-select: text;
+}
+
+.trace-line { display: block; padding: 0 12px; white-space: pre; cursor: pointer; }
+
+.trace-snippet.wrap .trace-line {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.trace-line:hover { background: color-mix(in oklab, var(--text-primary), transparent 94%); }
+
+.trace-line.err {
+  background: color-mix(in oklab, var(--status-danger), transparent 88%);
+  color: var(--status-danger);
+}
+
+/* after .err so a selected error line still shows its selection */
+.trace-line.sel {
+  background: color-mix(in oklab, var(--accent-primary), transparent 86%);
+  box-shadow: inset 2px 0 0 var(--accent-primary);
+}

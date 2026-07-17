@@ -11,6 +11,7 @@ import { Dialog } from "./components/Dialog";
 import { PanelResizeHandles } from "./components/ResizeHandles";
 import { WelcomeView } from "./components/views/WelcomeView";
 import { LogView } from "./components/views/LogView";
+import { ErrorTraceView } from "./components/views/ErrorTraceView";
 import { SourceEditView } from "./components/views/SourceEditView";
 import { SettingsView } from "./components/views/SettingsView";
 import { inspectorAvailable, useApp } from "./store";
@@ -23,6 +24,8 @@ function renderView(tab: TabDef, active: boolean) {
   switch (tab.kind) {
     case "welcome": return <WelcomeView key={tab.id} active={active} />;
     case "source": return <LogView key={tab.id} tabId={tab.id} sourceId={tab.sourceId!} active={active} />;
+    case "error-trace":
+      return <ErrorTraceView key={tab.id} sourceId={tab.sourceId!} fingerprint={tab.fingerprint!} title={tab.title} active={active} />;
     case "source-edit": return <SourceEditView key={tab.id} active={active} />;
     case "settings": return <SettingsView key={tab.id} active={active} />;
   }

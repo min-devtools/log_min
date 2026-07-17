@@ -48,3 +48,85 @@ export function shouldAutoRouteJson(raw: string): boolean {
   if (!Array.isArray(hit.value)) return Object.keys(hit.value).length > 0;
   return hit.end - hit.start >= raw.trim().length * 0.5;
 }
+
+export type JsonFieldType = "object" | "array" | "string" | "number" | "boolean" | "null";
+
+export interface JsonField {
+  path: string;
+  depth: number;
+  type: JsonFieldType;
+  preview: string;
+  copyValue: string;
+}
+
+const SAFE_PATH_KEY = /^[A-Za-z_$][\w$]*$/;
+const PREVIEW_LENGTH = 78;
+
+function fieldType(value: unknown): JsonFieldType {
+  if (value === null) return "null";
+  if (Array.isArray(value)) return "array";
+  if (typeof value === "object") return "object";
+  return typeof value as "string" | "number" | "boolean";
+}
+
+function fieldPreview(value: unknown, type: JsonFieldType): string {
+  if (type === "object") return `${Object.keys(value as object).length} fields`;
+  if (type === "array") return `${(value as unknown[]).length} items`;
+  const text = value === null ? "null" : String(value);
+  return text.length <= PREVIEW_LENGTH ? text : `${text.slice(0, PREVIEW_LENGTH - 1)}…`;
+}
+
+function copyValue(value: unknown, type: JsonFieldType): string {
+  if (type === "string") return value as string;
+  if (type === "object" || type === "array") return JSON.stringify(value, null, 2);
+  return value === null ? "null" : String(value);
+}
+
+export function jsonChildPath(parent: string, key: string | number): string {
+  if (typeof key === "number") return `${parent}[${key}]`;
+  return SAFE_PATH_KEY.test(key) ? `${parent}.${key}` : `${parent}[${JSON.stringify(key)}]`;
+}
+
+/** Pre-order, flat field model for a narrow inspector pane. */
+export function jsonFields(value: unknown): JsonField[] {
+  const fields: JsonField[] = [];
+
+  const visit = (current: unknown, path: string, depth: number) => {
+    const type = fieldType(current);
+    fields.push({
+      path,
+      depth,
+      type,
+      preview: fieldPreview(current, type),
+      get copyValue() { return copyValue(current, type); },
+    });
+
+    if (Array.isArray(current)) {
+      current.forEach((child, index) => visit(child, jsonChildPath(path, index), depth + 1));
+    } else if (current !== null && typeof current === "object") {
+      Object.entries(current as Record<string, unknown>)
+        .forEach(([key, child]) => visit(child, jsonChildPath(path, key), depth + 1));
+    }
+  };
+
+  visit(value, "$", 0);
+  return fields;
+}
+
+export function filterJsonFields(fields: JsonField[], query: string): JsonField[] {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return fields;
+  return fields.filter((field) =>
+    `${field.path}\n${field.type}\n${field.preview}`.toLowerCase().includes(needle),
+  );
+}
+
+/** JSONPaths that can be independently folded in the tree viewer. */
+export function jsonContainerPaths(value: unknown): string[] {
+  return jsonFields(value)
+    .filter((field) =>
+      (field.type === "object" && field.preview !== "0 fields") ||
+      (field.type === "array" && field.preview !== "0 items"),
+    )
+    .map((field) => field.path);
+}

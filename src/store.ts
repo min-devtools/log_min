@@ -2,21 +2,24 @@ import { create } from "zustand";
 import { isThemeId, themeBase } from "./lib/themes";
 import { clampFontSize, DEFAULT_FONT_SIZE } from "./lib/fontScale";
 import { bufferFor, dropBuffer } from "./lib/ring";
-import { dropErrorIndex } from "./lib/errors";
+import { archiveFor, dropArchive } from "./lib/errorArchive";
+import { dropErrorIndex, errorIndexFor } from "./lib/errors";
 import { dropInsightIndex } from "./lib/insight";
 import * as api from "./lib/logmin";
-import type { SelectedLine, SourceDef, SourceRuntime, StatusPayload, TabDef, TabKind } from "./lib/types";
+import type { CollectionDef, SelectedLine, SourceDef, SourceRuntime, StatusPayload, TabDef, TabKind } from "./lib/types";
 
 const TAB_META: Record<TabKind, { title: string; icon: TabDef["icon"]; iconClass: string }> = {
   welcome: { title: "Welcome", icon: "sparkles", iconClass: "soft-blue" },
   source: { title: "Source", icon: "docs", iconClass: "soft-blue" },
   "source-edit": { title: "New Source", icon: "plus", iconClass: "soft-green" },
   settings: { title: "Settings", icon: "settings", iconClass: "soft-orange" },
+  "error-trace": { title: "Error", icon: "zap", iconClass: "soft-orange" },
 };
 
 const sourceTabId = (sourceId: string) => `src-${sourceId}`;
 
 export const newSourceId = () => `s${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`;
+export const newCollectionId = () => `c${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`;
 const sourceTabIcon = (def: SourceDef): TabDef["icon"] =>
   def.kind === "cmd" ? "code" : def.kind === "http" ? "globe" : "docs";
 
@@ -29,7 +32,8 @@ function loadSession(): { tabs: TabDef[]; activeTabId: string } | null {
     if (!raw) return null;
     const s = JSON.parse(raw);
     if (!Array.isArray(s.tabs) || s.tabs.length === 0) return null;
-    const tabs: TabDef[] = s.tabs.filter((t: TabDef) => TAB_META[t.kind]);
+    // error-trace tabs are not restored: their archive is RAM-only and empty after a relaunch
+    const tabs: TabDef[] = s.tabs.filter((t: TabDef) => TAB_META[t.kind] && t.kind !== "error-trace");
     if (!tabs.length) return null;
     return {
       tabs,
@@ -59,6 +63,7 @@ export interface DialogRequest {
 
 interface AppState {
   sources: SourceDef[];
+  collections: CollectionDef[];
   runtimes: Record<string, SourceRuntime>;
   /** bumped per received batch — LogView subscribes and reads the ring imperatively */
   bufVersions: Record<string, number>;
@@ -95,6 +100,16 @@ interface AppState {
   // sources
   setSources: (sources: SourceDef[]) => void;
   saveSource: (def: SourceDef) => void;
+  // sidebar collections
+  setCollections: (collections: CollectionDef[]) => void;
+  createCollection: (name: string) => void;
+  renameCollection: (id: string, name: string) => void;
+  /** delete the folder; its sources drop back to root */
+  deleteCollection: (id: string) => void;
+  /** reorder a collection before another (null = end) */
+  reorderCollection: (id: string, beforeId: string | null) => void;
+  /** move a source into a collection (undefined = root), inserted before beforeId (null = end) */
+  moveSource: (id: string, collectionId: string | undefined, beforeId: string | null) => void;
   deleteSource: (id: string) => Promise<void>;
   startSource: (id: string) => Promise<void>;
   stopSource: (id: string) => Promise<void>;
@@ -104,12 +119,16 @@ interface AppState {
   onBatch: (sourceId: string, lines: number, errors: number, dropped: number) => void;
   /** "Clear buffer" pressed — zero the per-source counters and drop the published line */
   onBufferCleared: (sourceId: string) => void;
+  /** drop captured errors (index + archive) from RAM and zero the error counter */
+  clearErrors: (sourceId: string) => void;
   onErrorIndexChange: (sourceId: string) => void;
   onStatus: (p: StatusPayload) => void;
 
   // tabs
   openTab: (kind: TabKind) => void;
   openSourceTab: (sourceId: string) => void;
+  /** open (or focus) the dedicated trace tab for an error group */
+  openErrorTab: (sourceId: string, fingerprint: string, message: string) => void;
   closeTab: (id: string) => void;
   activateTab: (id: string) => void;
   reorderTab: (id: string, beforeId: string | null) => void;
@@ -139,12 +158,15 @@ let toastTimer: number | undefined;
 export const runtimeOf = (s: Pick<AppState, "runtimes">, id: string): SourceRuntime =>
   s.runtimes[id] ?? IDLE_RUNTIME;
 
-/** The error dock belongs to source tabs; non-source views keep the workspace wide. */
-export const inspectorAvailable = (s: Pick<AppState, "tabs" | "activeTabId">) =>
-  s.tabs.find((tab) => tab.id === s.activeTabId)?.kind === "source";
+/** The error dock belongs to source-bound tabs; other views keep the workspace wide. */
+export const inspectorAvailable = (s: Pick<AppState, "tabs" | "activeTabId">) => {
+  const kind = s.tabs.find((tab) => tab.id === s.activeTabId)?.kind;
+  return kind === "source" || kind === "error-trace";
+};
 
 export const useApp = create<AppState>((set, get) => ({
   sources: [],
+  collections: [],
   runtimes: {},
   bufVersions: {},
   errorVersions: {},
@@ -185,6 +207,42 @@ export const useApp = create<AppState>((set, get) => ({
       return { sources, tabs };
     }),
 
+  setCollections: (collections) => set({ collections }),
+
+  createCollection: (name) =>
+    set((s) => ({ collections: [...s.collections, { id: newCollectionId(), name }] })),
+
+  renameCollection: (id, name) =>
+    set((s) => ({ collections: s.collections.map((c) => (c.id === id ? { ...c, name } : c)) })),
+
+  deleteCollection: (id) =>
+    set((s) => ({
+      collections: s.collections.filter((c) => c.id !== id),
+      sources: s.sources.map((x) => (x.collectionId === id ? { ...x, collectionId: undefined } : x)),
+    })),
+
+  reorderCollection: (id, beforeId) =>
+    set((s) => {
+      if (id === beforeId) return s;
+      const collections = s.collections.filter((c) => c.id !== id);
+      const moved = s.collections.find((c) => c.id === id);
+      if (!moved) return s;
+      const at = beforeId ? collections.findIndex((c) => c.id === beforeId) : -1;
+      collections.splice(at < 0 ? collections.length : at, 0, moved);
+      return { collections };
+    }),
+
+  moveSource: (id, collectionId, beforeId) =>
+    set((s) => {
+      if (id === beforeId) return s;
+      const moved = s.sources.find((x) => x.id === id);
+      if (!moved) return s;
+      const sources = s.sources.filter((x) => x.id !== id);
+      const at = beforeId ? sources.findIndex((x) => x.id === beforeId) : -1;
+      sources.splice(at < 0 ? sources.length : at, 0, { ...moved, collectionId });
+      return { sources };
+    }),
+
   deleteSource: async (id) => {
     try {
       await api.sourceStop(id);
@@ -194,7 +252,9 @@ export const useApp = create<AppState>((set, get) => ({
     dropBuffer(id);
     dropErrorIndex(id);
     dropInsightIndex(id);
+    dropArchive(id);
     const s = get();
+    for (const t of s.tabs.filter((x) => x.kind === "error-trace" && x.sourceId === id)) s.closeTab(t.id);
     s.closeTab(sourceTabId(id));
     set((st) => {
       const runtimes = { ...st.runtimes };
@@ -277,15 +337,24 @@ export const useApp = create<AppState>((set, get) => ({
     }),
 
   onBufferCleared: (sourceId) =>
+    // errors (index + archive + counter) survive a clear by design — only the ring resets
     set((s) => ({
       bufVersions: { ...s.bufVersions, [sourceId]: (s.bufVersions[sourceId] ?? 0) + 1 },
-      errorVersions: { ...s.errorVersions, [sourceId]: (s.errorVersions[sourceId] ?? 0) + 1 },
       runtimes: {
         ...s.runtimes,
-        [sourceId]: { ...runtimeOf(s, sourceId), lines: 0, errors: 0, dropped: 0 },
+        [sourceId]: { ...runtimeOf(s, sourceId), lines: 0, dropped: 0 },
       },
       inspectLine: s.inspectLine?.sourceId === sourceId ? null : s.inspectLine,
     })),
+
+  clearErrors: (sourceId) => {
+    errorIndexFor(sourceId).clear();
+    archiveFor(sourceId).clear();
+    set((s) => ({
+      errorVersions: { ...s.errorVersions, [sourceId]: (s.errorVersions[sourceId] ?? 0) + 1 },
+      runtimes: { ...s.runtimes, [sourceId]: { ...runtimeOf(s, sourceId), errors: 0 } },
+    }));
+  },
 
   onErrorIndexChange: (sourceId) =>
     set((s) => ({
@@ -320,6 +389,20 @@ export const useApp = create<AppState>((set, get) => ({
     set({
       tabs: [...s.tabs, { id: kind, kind, ...TAB_META[kind] }],
       activeTabId: kind,
+    });
+  },
+
+  openErrorTab: (sourceId, fingerprint, message) => {
+    const s = get();
+    const id = `err-${sourceId}-${fingerprint}`;
+    if (s.tabs.some((t) => t.id === id)) return set({ activeTabId: id });
+    const title = message.length > 32 ? `${message.slice(0, 32)}…` : message;
+    set({
+      tabs: [
+        ...s.tabs,
+        { id, kind: "error-trace", title, icon: "zap", iconClass: "soft-orange", sourceId, fingerprint },
+      ],
+      activeTabId: id,
     });
   },
 
@@ -407,7 +490,14 @@ export const useApp = create<AppState>((set, get) => ({
   setCommandOpen: (open) => set({ commandOpen: open }),
   runActive: () => set((s) => ({ runNonce: s.runNonce + 1 })),
   jumpToLine: (sourceId, seq) =>
-    set((s) => ({ jumpTarget: { sourceId, seq, nonce: (s.jumpTarget?.nonce ?? 0) + 1 } })),
+    set((s) => {
+      // jumping from a trace tab must land on the log tab, where the line lives
+      const id = sourceTabId(sourceId);
+      return {
+        jumpTarget: { sourceId, seq, nonce: (s.jumpTarget?.nonce ?? 0) + 1 },
+        activeTabId: s.tabs.some((t) => t.id === id) ? id : s.activeTabId,
+      };
+    }),
 
   setInspectLine: (inspectLine) => set({ inspectLine }),
 

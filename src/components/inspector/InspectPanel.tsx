@@ -1,24 +1,24 @@
-import { Fragment, useMemo } from "react";
-import { extractJson } from "../../lib/json";
+import { useEffect, useMemo, useState } from "react";
+import { extractKv } from "../../lib/kv";
 import type { SelectedLine } from "../../lib/types";
 import { Icon } from "../../ui/Icon";
 import { ToolButton } from "../../ui/ToolButton";
-
-/** top-level primitive fields of embedded JSON — the "lightweight structured fields" */
-function structuredFields(raw: string): [string, string][] {
-  const hit = extractJson(raw);
-  if (!hit || typeof hit.value !== "object" || hit.value === null || Array.isArray(hit.value)) return [];
-  return Object.entries(hit.value as Record<string, unknown>)
-    .filter(([, v]) => v === null || typeof v !== "object")
-    .map(([k, v]) => [k, String(v)]);
-}
+import { Kv } from "../../ui/Kv";
 
 export function InspectPanel({ line, onCopy, onJump }: {
   line: SelectedLine | null;
   onCopy: (text: string, label: string) => void;
   onJump: (seq: number) => void;
 }) {
-  const fields = useMemo(() => (line ? structuredFields(line.raw) : []), [line]);
+  const [query, setQuery] = useState("");
+  const pairs = useMemo(() => (line ? extractKv(line.raw) : []), [line]);
+  const visible = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return pairs;
+    return pairs.filter((p) => p.key.toLowerCase().includes(q) || p.value.toLowerCase().includes(q));
+  }, [pairs, query]);
+
+  useEffect(() => setQuery(""), [line]);
 
   if (!line) {
     return (
@@ -26,7 +26,7 @@ export function InspectPanel({ line, onCopy, onJump }: {
         <div className="error-dock-empty">
           <span className="error-dock-empty-icon"><Icon name="search" size={18} /></span>
           <strong>No line selected</strong>
-          <p>Click a log line to see its raw text and metadata here.</p>
+          <p>Click a log line to see its metadata and key/value pairs here.</p>
         </div>
       </div>
     );
@@ -34,33 +34,81 @@ export function InspectPanel({ line, onCopy, onJump }: {
 
   return (
     <div className="inspector-scroll inspect-dock">
-      <div className="dock-kv">
-        <span>line</span><strong>#{line.seq + 1}</strong>
-        <span>stream</span><strong>{line.stream}</strong>
-        <span>level</span><strong>{line.level ?? "—"}</strong>
-        <span>trace</span><strong>{line.traceId !== undefined ? `member of trace ${line.traceId}` : "—"}</strong>
-      </div>
-      <div className="dock-actions">
-        <ToolButton title="Copy complete raw line" onClick={() => onCopy(line.raw, "Complete raw line.")}>
-          <Icon name="copy" size={13} /> Copy raw
-        </ToolButton>
-        <ToolButton title="Scroll to and flash this line in the log" onClick={() => onJump(line.seq)}>
-          <Icon name="status" size={13} /> Jump to line
-        </ToolButton>
-      </div>
-      <pre className="inspect-raw">{line.raw}</pre>
-      {fields.length > 0 && (
-        <section className="dock-section" aria-label="Parsed fields">
-          <h4>Fields</h4>
-          <div className="dock-kv">
-            {fields.map(([key, value]) => (
-              <Fragment key={key}>
-                <span>{key}</span><strong>{value}</strong>
-              </Fragment>
-            ))}
-          </div>
-        </section>
-      )}
+      <section className="dock-section panel inspect-meta">
+        <div className="dock-section-head">
+          <h3>Selected line</h3>
+          <ToolButton title="Scroll to and flash this line in the log" onClick={() => onJump(line.seq)}>
+            <Icon name="status" size={13} /> Jump
+          </ToolButton>
+        </div>
+        <Kv label="line">#{line.seq + 1}</Kv>
+        <Kv label="stream">{line.stream}</Kv>
+        <Kv label="level">{line.level ?? "—"}</Kv>
+        <Kv label="trace">{line.traceId !== undefined ? `member of trace ${line.traceId}` : "—"}</Kv>
+      </section>
+
+      <section className="dock-section panel inspect-fields" aria-label="Key/value pairs">
+        <div className="dock-section-head">
+          <h3>Key / value</h3>
+          <span className="inspect-field-count">{visible.length} / {pairs.length}</span>
+        </div>
+        {pairs.length > 0 ? (
+          <>
+            <label className="inspect-search">
+              <Icon name="search" size={13} />
+              <input
+                value={query}
+                placeholder="Filter key or value…"
+                spellCheck={false}
+                onChange={(event) => setQuery(event.target.value)}
+              />
+              {query && (
+                <button type="button" title="Clear filter" aria-label="Clear filter" onClick={() => setQuery("")}>
+                  <Icon name="x" size={12} />
+                </button>
+              )}
+            </label>
+            <div className="inspect-field-list">
+              {visible.map((pair, i) => (
+                <div
+                  className="inspect-field inspect-pair"
+                  key={`${pair.key}=${pair.value}-${i}`}
+                  title={`Click to copy value: ${pair.value}`}
+                  onClick={() => onCopy(pair.value, `Value of ${pair.key}.`)}
+                >
+                  <div className="inspect-field-main">
+                    <code title={pair.key}>{pair.key}</code>
+                    <span title={pair.value}>{pair.value}</span>
+                  </div>
+                  <div className="inspect-field-actions">
+                    <ToolButton
+                      iconOnly
+                      title={`Copy key: ${pair.key}`}
+                      aria-label={`Copy key ${pair.key}`}
+                      onClick={(e) => { e.stopPropagation(); onCopy(pair.key, "Key."); }}
+                    >
+                      <Icon name="key" size={12} />
+                    </ToolButton>
+                    <ToolButton
+                      iconOnly
+                      title={`Copy ${pair.key}=${pair.value}`}
+                      aria-label={`Copy pair ${pair.key}`}
+                      onClick={(e) => { e.stopPropagation(); onCopy(`${pair.key}=${pair.value}`, "Pair."); }}
+                    >
+                      <Icon name="copy" size={12} />
+                    </ToolButton>
+                  </div>
+                </div>
+              ))}
+              {visible.length === 0 && (
+                <div className="inspect-no-fields">No pairs match “{query.trim()}”.</div>
+              )}
+            </div>
+          </>
+        ) : (
+          <div className="inspect-no-fields">No key=value or “field: value” pairs on this line.</div>
+        )}
+      </section>
     </div>
   );
 }

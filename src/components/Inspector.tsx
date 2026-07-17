@@ -13,22 +13,23 @@ import { OverviewPanel } from "./inspector/OverviewPanel";
 /** Right dock: Overview / Inspect / JSON / Errors for the active source. */
 export function Inspector() {
   const activeTab = useApp((state) => state.tabs.find((tab) => tab.id === state.activeTabId));
-  const sourceId = activeTab?.kind === "source" ? activeTab.sourceId : undefined;
+  // error-trace tabs belong to a source too — keep the dock (JSON / Inspect / Errors) alive there
+  const sourceId =
+    activeTab?.kind === "source" || activeTab?.kind === "error-trace" ? activeTab.sourceId : undefined;
   const source = useApp((state) => state.sources.find((item) => item.id === sourceId));
   const errorVersion = useApp((state) => (sourceId ? state.errorVersions[sourceId] ?? 0 : 0));
   const inspectLine = useApp((state) => state.inspectLine);
   const showToast = useApp((state) => state.showToast);
   const jumpToLine = useApp((state) => state.jumpToLine);
+  const openErrorTab = useApp((state) => state.openErrorTab);
 
   const [dock, setDock] = useState(INITIAL_DOCK_TAB);
   const dispatch = (event: DockTabEvent) => setDock((state) => dockTabNext(state, event));
-  const [selectedFingerprint, setSelectedFingerprint] = useState<string | null>(null);
 
   const line = inspectLine?.sourceId === sourceId ? inspectLine : null;
 
   useEffect(() => {
     setDock(INITIAL_DOCK_TAB);
-    setSelectedFingerprint(null);
   }, [sourceId]);
 
   // a plain click routes the dock; clearing the last selection returns to Overview.
@@ -75,26 +76,14 @@ export function Inspector() {
           sourceId={sourceId}
           source={source}
           groups={snapshot.groups}
-          onShowError={(fingerprint) => {
-            setSelectedFingerprint(fingerprint);
-            dispatch({ type: "manual", tab: "errors" });
-          }}
+          onShowError={(group) => openErrorTab(sourceId, group.fingerprint, group.message)}
         />
       )}
       {dock.tab === "inspect" && (
         <InspectPanel line={line} onCopy={handleCopy} onJump={(seq) => sourceId && jumpToLine(sourceId, seq)} />
       )}
       {dock.tab === "json" && <JsonPanel line={line} onCopy={handleCopy} />}
-      {dock.tab === "errors" && (
-        <ErrorsPanel
-          sourceId={sourceId}
-          source={source}
-          snapshot={snapshot}
-          selectedFingerprint={selectedFingerprint}
-          onSelect={setSelectedFingerprint}
-          onCopy={handleCopy}
-        />
-      )}
+      {dock.tab === "errors" && <ErrorsPanel sourceId={sourceId} source={source} snapshot={snapshot} />}
     </aside>
   );
 }
