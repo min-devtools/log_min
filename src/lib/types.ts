@@ -89,6 +89,15 @@ export interface BatchPayload {
   dropped: number;
 }
 
+/** parse worker → main: tagged batch, plus a patch when the previous batch's
+ * last line was retroactively adopted as a trace head */
+export interface ParsedBatch {
+  sourceId: string;
+  lines: LogLine[];
+  dropped: number;
+  patchPrev?: { traceId: number; traceStart: true; level: "err" };
+}
+
 /** payload of the Rust `log:status` event */
 export interface StatusPayload {
   sourceId: string;

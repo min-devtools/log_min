@@ -1,6 +1,6 @@
 import type { Frame, LogLevel, LogLine } from "./types";
 
-// ─── level detection (M1: cheap regex; the parser worker lands in M2) ────
+// ─── level detection (cheap regex; runs inside parseWorker off the UI thread) ────
 
 /** first level keyword in the head wins — a payload word can't override the line's own tag */
 const RE_LEVEL =

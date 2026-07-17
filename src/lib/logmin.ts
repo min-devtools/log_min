@@ -1,13 +1,11 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { parseAnsi } from "./ansi";
 import { bufferFor } from "./ring";
 import { archiveFor } from "./errorArchive";
 import { errorIndexFor } from "./errors";
 import { insightIndexFor } from "./insight";
-import { detectLevel, TraceAssembler } from "./trace";
 import { useApp } from "../store";
-import type { BatchPayload, LogLine, SourceDef, StatusPayload } from "./types";
+import type { BatchPayload, LogLine, ParsedBatch, SourceDef, StatusPayload } from "./types";
 
 // ─── typed command wrappers ───────────────────────────────────────────────
 
@@ -64,50 +62,38 @@ export async function dockerPs(): Promise<DockerContainer[]> {
 
 // ─── event wiring ─────────────────────────────────────────────────────────
 
-/** per-source stateful trace detection */
-const assemblers = new Map<string, TraceAssembler>();
+/** last pushed line per source — patch target for cross-batch trace adoption */
+const lastPushed = new Map<string, LogLine>();
 
-function assemblerFor(sourceId: string): TraceAssembler {
-  let a = assemblers.get(sourceId);
-  if (!a) {
-    a = new TraceAssembler();
-    assemblers.set(sourceId, a);
+/** stateful indexing on tagged lines — ring/insight/archive/error state stays main-thread */
+function ingestParsed({ sourceId, lines: tagged, dropped, patchPrev }: ParsedBatch): void {
+  if (patchPrev) {
+    const prev = lastPushed.get(sourceId);
+    if (prev) Object.assign(prev, patchPrev);
   }
-  return a;
+  const errorIndex = errorIndexFor(sourceId);
+  bufferFor(sourceId).push(tagged);
+  insightIndexFor(sourceId).feed(tagged, Date.now());
+  // archive first so ErrorIndex commits can tag snippets that already hold their lines
+  const archive = archiveFor(sourceId);
+  for (const line of tagged) archive.feed(line);
+  errorIndex.onOccurrence = (occ) => archive.tagFingerprint(occ.fingerprint, occ.lastSeq);
+  let errorIndexChanged = false;
+  for (const line of tagged) errorIndexChanged = errorIndex.feed(line) || errorIndexChanged;
+  let errors = 0;
+  for (const l of tagged) if (l.traceStart || (l.level === "err" && !l.traceId)) errors++;
+  if (tagged.length) lastPushed.set(sourceId, tagged[tagged.length - 1]);
+  useApp.getState().onBatch(sourceId, tagged.length, errors, dropped);
+  if (errorIndexChanged) useApp.getState().onErrorIndexChange(sourceId);
 }
 
-/** subscribe once at startup; events flow into rings + store counters */
+/** subscribe once at startup; batches route through the parse worker so
+ * ANSI/level/trace regex work never blocks the UI thread under burst load */
 export async function initLogEvents(): Promise<void> {
-  await listen<BatchPayload>("log:batch", (e) => {
-    const { sourceId, lines, dropped } = e.payload;
-    const asm = assemblerFor(sourceId);
-    const errorIndex = errorIndexFor(sourceId);
-    const tagged: LogLine[] = lines.map((l) => {
-      // ANSI: raw is stored stripped (search/copy stay clean), SGR colors kept as spans
-      let raw = l.raw;
-      let ansi: LogLine["ansi"];
-      if (raw.includes("\x1b")) {
-        const parsed = parseAnsi(raw);
-        raw = parsed.clean;
-        if (parsed.spans.length) ansi = parsed.spans;
-      }
-      const line: LogLine = { ...l, raw, ansi, level: detectLevel(raw) };
-      asm.feed(line);
-      return line;
-    });
-    bufferFor(sourceId).push(tagged);
-    insightIndexFor(sourceId).feed(tagged, Date.now());
-    // archive first so ErrorIndex commits can tag snippets that already hold their lines
-    const archive = archiveFor(sourceId);
-    for (const line of tagged) archive.feed(line);
-    errorIndex.onOccurrence = (occ) => archive.tagFingerprint(occ.fingerprint, occ.lastSeq);
-    let errorIndexChanged = false;
-    for (const line of tagged) errorIndexChanged = errorIndex.feed(line) || errorIndexChanged;
-    let errors = 0;
-    for (const l of tagged) if (l.traceStart || (l.level === "err" && !l.traceId)) errors++;
-    useApp.getState().onBatch(sourceId, tagged.length, errors, dropped);
-    if (errorIndexChanged) useApp.getState().onErrorIndexChange(sourceId);
-  });
+  const worker = new Worker(new URL("./parseWorker.ts", import.meta.url), { type: "module" });
+  worker.onmessage = (e: MessageEvent<ParsedBatch>) => ingestParsed(e.data);
+
+  await listen<BatchPayload>("log:batch", (e) => worker.postMessage(e.payload));
 
   await listen<StatusPayload>("log:status", (e) => {
     useApp.getState().onStatus(e.payload);
