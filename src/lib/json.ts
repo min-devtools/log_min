@@ -38,3 +38,13 @@ function scanBalanced(text: string, start: number): number {
   }
   return -1;
 }
+
+/** Should a click on this line auto-open the dock's JSON tab?
+ * Only when the line is *about* the JSON: a non-empty object anywhere, or an
+ * array covering most of the line — a bare `[3]` inside prose stays in Inspect. */
+export function shouldAutoRouteJson(raw: string): boolean {
+  const hit = extractJson(raw);
+  if (!hit || typeof hit.value !== "object" || hit.value === null) return false;
+  if (!Array.isArray(hit.value)) return Object.keys(hit.value).length > 0;
+  return hit.end - hit.start >= raw.trim().length * 0.5;
+}

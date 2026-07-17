@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { extractJson } from "./json";
+import { extractJson, shouldAutoRouteJson } from "./json";
 
 describe("extractJson", () => {
   it("parses a whole-line json object", () => {
@@ -20,5 +20,23 @@ describe("extractJson", () => {
   it("returns null for prose and never-closed brackets", () => {
     expect(extractJson("server started {unclosed")).toBeNull();
     expect(extractJson("no json here")).toBeNull();
+  });
+});
+
+describe("shouldAutoRouteJson", () => {
+  it("routes whole-line and prefixed objects to JSON", () => {
+    expect(shouldAutoRouteJson('{"level":30,"msg":"ok"}')).toBe(true);
+    expect(shouldAutoRouteJson('2026-07-17 INFO payload {"a":1} tail')).toBe(true);
+  });
+
+  it("routes arrays only when they dominate the line", () => {
+    expect(shouldAutoRouteJson('[{"a":1},{"b":2}]')).toBe(true);
+    expect(shouldAutoRouteJson("retry [3] failed after 5 attempts")).toBe(false);
+  });
+
+  it("never routes prose, empty objects, or non-JSON", () => {
+    expect(shouldAutoRouteJson("no json here")).toBe(false);
+    expect(shouldAutoRouteJson("use {} braces for blocks")).toBe(false);
+    expect(shouldAutoRouteJson("server started {unclosed")).toBe(false);
   });
 });
