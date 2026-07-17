@@ -1146,58 +1146,6 @@ body.light .docs-preview-editor { color: var(--editor-fg); }
 /* second sticky button on json lines — offset so it never overlaps the copy button */
 .log-copy.log-json { right: 30px; }
 
-.log-inspect-overlay {
-  position: absolute;
-  inset: 0;
-  z-index: 30;
-  display: grid;
-  place-items: center;
-  background: color-mix(in oklab, var(--surface-editor), transparent 40%);
-  backdrop-filter: blur(2px);
-}
-
-.log-inspect {
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
-  width: min(720px, calc(100% - 48px));
-  max-height: min(70vh, calc(100% - 48px));
-  border: 1px solid var(--border-default);
-  border-radius: 10px;
-  background: var(--surface-raised);
-  box-shadow: 0 18px 40px rgb(0 0 0 / 0.35);
-  overflow: hidden;
-}
-
-.log-inspect-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 8px 10px;
-  border-bottom: 1px solid var(--border-default);
-}
-
-.log-inspect-head strong {
-  color: var(--text-secondary);
-  font: 600 0.7692rem var(--font-mono);
-  letter-spacing: 0.02em;
-}
-
-.log-inspect-actions { display: flex; align-items: center; gap: 6px; }
-
-.log-inspect-body {
-  margin: 0;
-  padding: 12px;
-  overflow: auto;
-  min-height: 0;
-}
-
-pre.log-inspect-body.raw {
-  color: var(--text-secondary);
-  font: 0.8462rem/1.5 var(--font-mono);
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
 .log-copy:hover { color: var(--text-primary); background: var(--surface-hover); }
 .log-copy:active { transform: translateY(1px); }
 
@@ -1820,3 +1768,98 @@ pre.log-inspect-body.raw {
 /* base.css disables user-select globally — re-enable for log text + json raw */
 .log-raw { user-select: text; cursor: text; }
 .json-dock-raw { user-select: text; cursor: text; }
+
+/* ── integrated right dock: Overview / Inspect panels ─────────────────── */
+
+.overview-dock,
+.inspect-dock {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.dock-section h4 {
+  margin: 0 0 6px;
+  font-size: 0.7692rem;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.dock-kv {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+  font-size: 0.8462rem;
+}
+
+.dock-kv > span { color: var(--text-muted); }
+.dock-kv > strong { font-weight: 500; color: var(--text-primary); overflow-wrap: anywhere; }
+
+.dock-target {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dock-state-live { color: var(--accent-secondary); }
+.dock-state-error { color: var(--status-danger); }
+
+.dock-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+
+.inspect-raw {
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  background: var(--editor-bg);
+  font-family: var(--font-mono);
+  font-size: 0.8077rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+.dock-signal-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 10px;
+}
+
+.dock-signal {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  background: var(--surface-raised);
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.dock-signal:hover { border-color: var(--status-danger); }
+
+.dock-signal-count {
+  flex: none;
+  font-size: 0.7692rem;
+  color: var(--status-danger);
+}
+
+.dock-signal-copy { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+
+.dock-signal-copy strong {
+  font-size: 0.8462rem;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dock-signal-copy small { font-size: 0.7308rem; color: var(--text-muted); }
