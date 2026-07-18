@@ -8,12 +8,15 @@ import { ToolButton } from "../../ui/ToolButton";
 import { Icon } from "../../ui/Icon";
 import { runtimeOf, useApp } from "../../store";
 import { bufferFor } from "../../lib/ring";
+import { openLocation } from "../../lib/editor";
 import { copyTextForLines } from "../../lib/errors";
+import { lineTokens, renderSpans } from "../../lib/highlight";
 import { insightIndexFor } from "../../lib/insight";
 import { LiveFilter } from "../../lib/liveFilter";
 import { saveText } from "../../lib/logmin";
-import { rawLogText, tokenizeLogLine } from "../../lib/logPresentation";
+import { rawLogText } from "../../lib/logPresentation";
 import { estimateLogRowHeight } from "../../lib/wrapLayout";
+import { sourceIcon } from "../../lib/types";
 import type { LogLevel, LogLine } from "../../lib/types";
 
 const OVERSCAN = 20;
@@ -64,6 +67,8 @@ export function LogView({ sourceId, active }: Props) {
   const ring = bufferFor(sourceId);
   const rowH = useRowHeight();
   const uiFontSize = useApp((s) => s.uiFontSize);
+  // the Errors dock owns ⌘F for its own in-tab search while it's the visible dock tab
+  const dockTab = useApp((s) => s.dockTab.tab);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const [follow, setFollow] = useState(true);
@@ -374,7 +379,7 @@ export function LogView({ sourceId, active }: Props) {
     const onKey = (e: KeyboardEvent) => {
       const mod = e.metaKey || e.ctrlKey;
       const inInput = (e.target as HTMLElement)?.tagName === "INPUT";
-      if (mod && e.key.toLowerCase() === "f") {
+      if (mod && e.key.toLowerCase() === "f" && dockTab !== "errors") {
         e.preventDefault();
         setSearchOpen(true);
         requestAnimationFrame(() => searchInputRef.current?.select());
@@ -439,7 +444,7 @@ export function LogView({ sourceId, active }: Props) {
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active, selection, copySelection, searchOpen, clearBuffer, publishLine, viewIdx, viewLen, wrap, rowH, computeRange]);
+  }, [active, selection, copySelection, searchOpen, clearBuffer, publishLine, viewIdx, viewLen, wrap, rowH, computeRange, dockTab]);
 
   const onRowClick = (l: LogLine, e: React.MouseEvent) => {
     // dragging to select text also fires click on mouseup — keep the selection
@@ -528,35 +533,16 @@ export function LogView({ sourceId, active }: Props) {
     return out;
   };
 
-  /** syntax/ANSI token spans + search <mark>s in one walk — rendered rows only, so cheap */
-  const renderRaw = (text: string, isMatch: boolean, ansi?: LogLine["ansi"]): React.ReactNode => {
-    // real terminal colors beat guessed syntax colors; the Syntax toggle governs both
-    const tokens = syntax ? (ansi?.length ? ansi : tokenizeLogLine(text)) : [];
-    const marks = isMatch ? matchRanges(text) : [];
-    if (!tokens.length && !marks.length) return text;
-    const nodes: React.ReactNode[] = [];
-    let key = 0;
-    const pushPiece = (from: number, to: number, cls?: string) => {
-      let cur = from;
-      for (const [ms, me] of marks) {
-        if (me <= cur || ms >= to) continue;
-        const s = Math.max(ms, cur);
-        const e = Math.min(me, to);
-        if (s > cur) nodes.push(cls ? <span key={key++} className={cls}>{text.slice(cur, s)}</span> : text.slice(cur, s));
-        nodes.push(<mark key={key++}>{text.slice(s, e)}</mark>);
-        cur = e;
-      }
-      if (cur < to) nodes.push(cls ? <span key={key++} className={cls}>{text.slice(cur, to)}</span> : text.slice(cur, to));
-    };
-    let pos = 0;
-    for (const t of tokens) {
-      pushPiece(pos, t.start);
-      pushPiece(t.start, t.end, t.cls);
-      pos = t.end;
-    }
-    pushPiece(pos, text.length);
-    return nodes;
+  /** tok-path click → resolve against the source cwd and open in the editor */
+  const openLoc = (loc: string) => {
+    void openLocation(loc, def).then((opened) => {
+      if (!opened) showToast("Copied", "Source location copied. Choose an editor in Settings to open it directly.");
+    });
   };
+
+  /** token spans + search <mark>s in one walk — rendered rows only, so cheap */
+  const renderRaw = (text: string, isMatch: boolean, ansi?: LogLine["ansi"]): React.ReactNode =>
+    renderSpans(text, lineTokens(text, ansi, syntax), isMatch ? matchRanges(text) : [], openLoc);
 
   const renderLogLine = (
     l: LogLine,
@@ -619,7 +605,7 @@ export function LogView({ sourceId, active }: Props) {
     <section className={`content log-view ${active ? "active" : ""}`}>
       <div className="log-toolbar">
         <div className="log-toolbar-info" title={def.command ?? def.url ?? def.path}>
-          <Icon name={isCmd ? "terminal" : def.kind === "http" ? "globe" : "docs"} size={14} />
+          <Icon name={sourceIcon(def)} size={14} />
           <span className="log-toolbar-target">{def.command ?? def.url ?? def.path}</span>
         </div>
         <div className="log-toolbar-actions">
@@ -708,7 +694,7 @@ export function LogView({ sourceId, active }: Props) {
           >
             <Icon name="search" />
           </ToolButton>
-          <div className="log-cap" title="Lines kept in the buffer (100–200k). Type a number or pick a preset; 5k = 5000.">
+          <div className="log-cap" title="Lines kept in the buffer (100–100k). Type a number or pick a preset; 5k = 5000.">
             <Combobox
               value={capValue}
               freeText
@@ -718,7 +704,6 @@ export function LogView({ sourceId, active }: Props) {
                 { value: "10k", hint: "10 000 lines" },
                 { value: "50k", hint: "50 000 lines" },
                 { value: "100k", hint: "100 000 lines" },
-                { value: "200k", hint: "200 000 lines" },
               ]}
               onChange={commitCap}
             />

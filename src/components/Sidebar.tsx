@@ -3,6 +3,7 @@ import { useShallow } from "zustand/react/shallow";
 import { Badge } from "../ui/Badge";
 import { ContextMenu, type ContextMenuItem } from "../ui/ContextMenu";
 import { newSourceId, useApp } from "../store";
+import { sourceIcon } from "../lib/types";
 import type { CollectionDef, SourceDef, SourceStatus, TabKind } from "../lib/types";
 import { Icon, type IconName } from "../ui/Icon";
 
@@ -222,10 +223,7 @@ export function Sidebar() {
           setMenu({ x: e.clientX, y: e.clientY, id: s.id });
         }}
       >
-        <Icon
-          name={s.kind === "cmd" ? "terminal" : s.kind === "http" ? "globe" : "docs"}
-          className={status === "live" ? "soft-green" : undefined}
-        />
+        <Icon name={sourceIcon(s)} className={status === "live" ? "soft-green" : undefined} />
         <span>{s.name}</span>
         <Badge tone={statusTone(status)}>
           {status === "live" ? "live" : status === "error" ? "error" : "idle"}

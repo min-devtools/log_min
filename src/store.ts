@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { dockTabNext, INITIAL_DOCK_TAB, type DockTabEvent, type DockTabState } from "./lib/dockTab";
 import { isThemeId, themeBase } from "./lib/themes";
 import { clampFontSize, DEFAULT_FONT_SIZE } from "./lib/fontScale";
 import { bufferFor, dropBuffer } from "./lib/ring";
@@ -6,6 +7,7 @@ import { archiveFor, dropArchive } from "./lib/errorArchive";
 import { dropErrorIndex, errorIndexFor } from "./lib/errors";
 import { dropInsightIndex } from "./lib/insight";
 import * as api from "./lib/logmin";
+import { sourceIcon } from "./lib/types";
 import type { CollectionDef, SelectedLine, SourceDef, SourceRuntime, StatusPayload, TabDef, TabKind } from "./lib/types";
 
 const TAB_META: Record<TabKind, { title: string; icon: TabDef["icon"]; iconClass: string }> = {
@@ -20,9 +22,6 @@ const sourceTabId = (sourceId: string) => `src-${sourceId}`;
 
 export const newSourceId = () => `s${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`;
 export const newCollectionId = () => `c${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`;
-const sourceTabIcon = (def: SourceDef): TabDef["icon"] =>
-  def.kind === "cmd" ? "code" : def.kind === "http" ? "globe" : "docs";
-
 const IDLE_RUNTIME: SourceRuntime = { status: "idle", lines: 0, errors: 0, dropped: 0 };
 
 /** Restore last session's open tabs from localStorage (log lines are not persisted). */
@@ -94,6 +93,8 @@ interface AppState {
   jumpTarget: { sourceId: string; seq: number; nonce: number } | null;
   /** line last plain-clicked in a LogView — routes and feeds the right dock */
   inspectLine: SelectedLine | null;
+  /** right-dock sub-tab (Overview/Inspect/JSON/Errors) — shared so LogView can yield ⌘F to the Errors search */
+  dockTab: DockTabState;
   toast: ToastMsg | null;
   dialog: (DialogRequest & { resolve: (value: string | null) => void }) | null;
 
@@ -147,6 +148,7 @@ interface AppState {
   runActive: () => void;
   jumpToLine: (sourceId: string, seq: number) => void;
   setInspectLine: (line: SelectedLine | null) => void;
+  dispatchDockTab: (event: DockTabEvent) => void;
   showToast: (title: string, body: string, kind?: ToastMsg["kind"]) => void;
   clearToast: () => void;
   /** in-app replacement for window.prompt/confirm — unimplemented in the Tauri webview */
@@ -191,6 +193,7 @@ export const useApp = create<AppState>((set, get) => ({
   runNonce: 0,
   jumpTarget: null,
   inspectLine: null,
+  dockTab: INITIAL_DOCK_TAB,
   toast: null,
   dialog: null,
 
@@ -202,7 +205,7 @@ export const useApp = create<AppState>((set, get) => ({
       const sources = exists ? s.sources.map((x) => (x.id === def.id ? def : x)) : [...s.sources, def];
       // keep an open tab's title/icon in sync with the edited definition
       const tabs = s.tabs.map((t) =>
-        t.sourceId === def.id ? { ...t, title: def.name, icon: sourceTabIcon(def) } : t,
+        t.sourceId === def.id ? { ...t, title: def.name, icon: sourceIcon(def) } : t,
       );
       return { sources, tabs };
     }),
@@ -415,7 +418,7 @@ export const useApp = create<AppState>((set, get) => ({
     set({
       tabs: [
         ...s.tabs,
-        { id, kind: "source", title: def.name, icon: sourceTabIcon(def), iconClass: "soft-blue", sourceId },
+        { id, kind: "source", title: def.name, icon: sourceIcon(def), iconClass: "soft-blue", sourceId },
       ],
       activeTabId: id,
     });
@@ -500,6 +503,7 @@ export const useApp = create<AppState>((set, get) => ({
     }),
 
   setInspectLine: (inspectLine) => set({ inspectLine }),
+  dispatchDockTab: (event) => set((s) => ({ dockTab: dockTabNext(s.dockTab, event) })),
 
   showToast: (title, body, kind) => {
     window.clearTimeout(toastTimer);

@@ -67,8 +67,14 @@ async fn list_fonts() -> Result<Vec<String>, String> {
 }
 
 #[tauri::command]
-fn editor_open(editor: String, path: String, line: u32, col: Option<u32>) -> Result<(), String> {
-    editor::open_editor(&editor, &path, line, col)
+fn editor_open(
+    editor: String,
+    path: String,
+    line: u32,
+    col: Option<u32>,
+    base: Option<String>,
+) -> Result<(), String> {
+    editor::open_editor(&editor, &path, line, col, base.as_deref())
 }
 
 /// Buffer export: write text to a path picked via the save dialog.

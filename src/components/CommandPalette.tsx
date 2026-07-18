@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
+import { sourceIcon } from "../lib/types";
 import { useApp } from "../store";
 import { Icon, type IconName } from "../ui/Icon";
 
@@ -61,7 +62,7 @@ export function CommandPalette() {
     ];
     for (const s of sources) {
       base.push({
-        icon: s.kind === "cmd" ? "terminal" : s.kind === "http" ? "globe" : "docs",
+        icon: sourceIcon(s),
         label: `Open source: ${s.name}`,
         action: () => openSourceTab(s.id),
       });

@@ -27,6 +27,15 @@ export interface SourceDef {
   headers?: Record<string, string>;
 }
 
+/** the docker picker just creates a plain cmd source running `docker logs -f ...` */
+const isDockerSource = (def: SourceDef) => def.kind === "cmd" && /^docker\s/.test(def.command ?? "");
+
+export function sourceIcon(def: SourceDef): IconName {
+  if (def.kind === "file") return "docs";
+  if (def.kind === "http") return "globe";
+  return isDockerSource(def) ? "topics" : "terminal";
+}
+
 export type SourceStatus = "live" | "idle" | "error";
 
 /** volatile per-source runtime state (never persisted) */

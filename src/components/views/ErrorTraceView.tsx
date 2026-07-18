@@ -1,22 +1,24 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { archiveFor, type ArchivedLine, type ErrorOccurrence } from "../../lib/errorArchive";
+import { openLocation } from "../../lib/editor";
 import { errorIndexFor } from "../../lib/errors";
-import { openFrame } from "../../lib/editor";
-import { frameLocation } from "../../lib/logPresentation";
-import type { Frame } from "../../lib/types";
+import { countMatches, findMarks, lineTokens, renderSpans } from "../../lib/highlight";
 import { useApp } from "../../store";
 import { Icon } from "../../ui/Icon";
 import { ToolButton } from "../../ui/ToolButton";
 
 const fmtTime = (ms: number) => new Date(ms).toLocaleTimeString();
 
-function Snippet({ occ, picks, wrap, onCopy, onLineClick }: {
+function Snippet({ occ, picks, wrap, syntax, query, onCopy, onLineClick, onPathClick }: {
   occ: ErrorOccurrence;
   picks: Set<number> | null;
   wrap: boolean;
+  syntax: boolean;
+  query: string;
   onCopy: (text: string) => void;
   onLineClick: (line: ArchivedLine, e: React.MouseEvent) => void;
+  onPathClick: (loc: string) => void;
 }) {
   return (
     <section className="trace-occurrence">
@@ -43,7 +45,9 @@ function Snippet({ occ, picks, wrap, onCopy, onLineClick }: {
             title="Click to inspect · ⌘click multi-select · ⇧click range · ⌘C copies picked lines"
             onClick={(e) => onLineClick(l, e)}
           >
-            {l.raw || " "}
+            {l.raw
+              ? renderSpans(l.raw, lineTokens(l.raw, l.ansi, syntax), findMarks(l.raw, query), onPathClick)
+              : " "}
           </span>
         ))}
       </pre>
@@ -72,6 +76,13 @@ export function ErrorTraceView({ sourceId, fingerprint, title, active }: Props) 
     localStorage.setItem("log:trace-wrap", v ? "0" : "1");
     return !v;
   });
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [matchIdx, setMatchIdx] = useState(0);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  // follows the source's Syntax toggle (same localStorage key LogView writes)
+  const syntax = localStorage.getItem(`log:syntax:${sourceId}`) !== "0";
 
   const group = useMemo(
     () => errorIndexFor(sourceId).snapshot().groups.find((g) => g.fingerprint === fingerprint),
@@ -106,6 +117,26 @@ export function ErrorTraceView({ sourceId, fingerprint, title, active }: Props) 
       l ? { sourceId, seq: l.seq, raw: l.raw, stream: l.stream, level: l.level, traceId: l.traceId } : null,
     );
 
+  const matchCount = useMemo(
+    () => countMatches(occurrences.flatMap((occ) => occ.lines.map((l) => l.raw)), query),
+    [occurrences, query],
+  );
+  useEffect(() => setMatchIdx(0), [query]);
+  const jumpMatch = (dir: 1 | -1) => {
+    const marks = scrollRef.current?.querySelectorAll("mark");
+    if (!marks?.length) return;
+    const next = ((matchIdx + dir) % marks.length + marks.length) % marks.length;
+    setMatchIdx(next);
+    marks[next].scrollIntoView({ block: "center", behavior: "smooth" });
+  };
+
+  /** tok-path click in a snippet → resolve against the source cwd and open in the editor */
+  const openLoc = (loc: string) => {
+    void openLocation(loc, source).then((opened) => {
+      if (!opened) showToast("Copied", "Source location copied. Choose an editor in Settings to open it directly.");
+    });
+  };
+
   const onLineClick = (l: ArchivedLine, e: React.MouseEvent) => {
     // dragging to select text also fires click on mouseup — keep the selection
     if (window.getSelection()?.toString()) return;
@@ -132,6 +163,12 @@ export function ErrorTraceView({ sourceId, fingerprint, title, active }: Props) 
     const onKey = (e: KeyboardEvent) => {
       const mod = e.metaKey || e.ctrlKey;
       const inInput = (e.target as HTMLElement)?.tagName === "INPUT";
+      // this tab owns ⌘F while active — the dock's Errors search yields to it
+      if (mod && e.key.toLowerCase() === "f") {
+        e.preventDefault();
+        setSearchOpen(true);
+        requestAnimationFrame(() => searchInputRef.current?.select());
+      }
       // highlighted text wins over line picks — let the native copy handle it
       if (mod && e.key.toLowerCase() === "c" && selection?.picks.size && !inInput && !window.getSelection()?.toString()) {
         e.preventDefault();
@@ -140,27 +177,24 @@ export function ErrorTraceView({ sourceId, fingerprint, title, active }: Props) 
           .filter((r): r is string => r !== undefined);
         void copy(raws.join("\n"), `${raws.length} selected line${raws.length === 1 ? "" : "s"}.`);
       }
-      if (e.key === "Escape" && selection && !inInput) {
-        setSelection(null);
-        publishLine(null);
+      if (e.key === "Escape" && !inInput) {
+        if (searchOpen) {
+          setSearchOpen(false);
+          setQuery("");
+        } else if (selection) {
+          setSelection(null);
+          publishLine(null);
+        }
       }
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active, selection, linesBySeq]);
-
-  const handleOpen = (frame: Frame) => {
-    void openFrame(frame, source).then((opened) => {
-      if (!opened) showToast("Copied", "Source location copied. Choose an editor in Settings to open it directly.");
-    });
-  };
-
-  const origin = group?.topFrame ? frameLocation(group.topFrame, source) : null;
+  }, [active, selection, linesBySeq, searchOpen]);
 
   return (
     <section className={`content trace-view ${active ? "active" : ""}`}>
-      <div className="trace-scroll">
+      <div className="trace-scroll" ref={scrollRef}>
         <header className="trace-head">
           <div className="trace-head-copy">
             <h2>{group?.message ?? title}</h2>
@@ -170,6 +204,17 @@ export function ErrorTraceView({ sourceId, fingerprint, title, active }: Props) 
             </p>
           </div>
           <div className="dock-actions">
+            <ToolButton
+              iconOnly
+              title="Search (⌘F)"
+              aria-label="Search"
+              onClick={() => {
+                setSearchOpen(true);
+                requestAnimationFrame(() => searchInputRef.current?.select());
+              }}
+            >
+              <Icon name="search" size={13} />
+            </ToolButton>
             <ToolButton
               title={wrap ? "Disable snippet wrap" : "Wrap long snippet lines"}
               aria-pressed={wrap}
@@ -189,42 +234,27 @@ export function ErrorTraceView({ sourceId, fingerprint, title, active }: Props) 
           </div>
         </header>
 
-        {origin && group?.topFrame && (
-          <div className="trace-origin">
-            <span>Application origin</span>
-            <strong>{origin.file}:{origin.position}</strong>
-            <code>{origin.parent || origin.resolvedPath}</code>
-            <ToolButton title={`Open ${origin.full}`} onClick={() => handleOpen(group.topFrame!)}>
-              <Icon name="code" size={13} /> Open origin
-            </ToolButton>
+        {searchOpen && (
+          <div className="log-search trace-search">
+            <Icon name="search" size={13} />
+            <input
+              ref={searchInputRef}
+              value={query}
+              placeholder="Find in trace…"
+              spellCheck={false}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") jumpMatch(e.shiftKey ? -1 : 1);
+                if (e.key === "Escape") {
+                  setSearchOpen(false);
+                  setQuery("");
+                }
+              }}
+            />
+            <span className="log-search-count">
+              {query ? (matchCount ? `${matchIdx + 1}/${matchCount}` : "0") : ""}
+            </span>
           </div>
-        )}
-
-        {group && group.frames.length > 0 && (
-          <details className="trace-stack">
-            <summary>
-              Stack trace · {group.frames.filter((f) => f.isApp).length} app ·{" "}
-              {group.frames.filter((f) => !f.isApp).length} runtime
-            </summary>
-            <div className="trace-frame-list">
-              {group.frames.map((frame, index) => {
-                const location = frameLocation(frame, source);
-                return (
-                  <button
-                    key={`${frame.path}:${frame.line}:${index}`}
-                    type="button"
-                    className={`trace-frame ${frame.isApp ? "app" : "runtime"}`}
-                    title={frame.isApp ? `Open ${location.full}` : `Copy ${location.full}`}
-                    onClick={() => (frame.isApp ? handleOpen(frame) : void copy(location.full, "Source location."))}
-                  >
-                    <em>{String(index + 1).padStart(2, "0")}</em>
-                    <strong>{location.file}:{location.position}</strong>
-                    <span>{frame.fn || "anonymous"}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </details>
         )}
 
         <div className="trace-occurrence-list">
@@ -240,8 +270,11 @@ export function ErrorTraceView({ sourceId, fingerprint, title, active }: Props) 
                 occ={occ}
                 picks={selection?.picks ?? null}
                 wrap={wrap}
+                syntax={syntax}
+                query={query}
                 onCopy={(text) => void copy(text, "Snippet copied.")}
                 onLineClick={onLineClick}
+                onPathClick={openLoc}
               />
             ))
           )}

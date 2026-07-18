@@ -32,9 +32,9 @@ describe("Ring.setCap", () => {
     ring.setCap(1);
     expect(ring.capacity).toBe(100);
     ring.setCap(9_999_999);
-    expect(ring.capacity).toBe(200_000);
+    expect(ring.capacity).toBe(100_000);
     ring.setCap(0); // falsy → default
-    expect(ring.capacity).toBe(200_000);
+    expect(ring.capacity).toBe(100_000);
   });
 });
 

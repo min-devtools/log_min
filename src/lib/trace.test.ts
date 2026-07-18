@@ -32,9 +32,10 @@ describe("detectLevel", () => {
   });
 });
 
+// mirrors parseWorker: level is detected before the assembler sees the line
 function feed(lines: string[]): LogLine[] {
   const asm = new TraceAssembler();
-  const out: LogLine[] = lines.map((raw, i) => ({ seq: i, raw, stream: "out" as const }));
+  const out: LogLine[] = lines.map((raw, i) => ({ seq: i, raw, stream: "out" as const, level: detectLevel(raw) }));
   for (const l of out) asm.feed(l);
   return out;
 }
@@ -117,6 +118,76 @@ describe("TraceAssembler", () => {
       "    at run (src/main.ts:3:3)",
     ]);
     expect(lines[0].traceStart).toBe(true);
+  });
+
+  it("assembles a Go panic: multi-line message, blank line, goroutine banner, two-line frames", () => {
+    const lines = feed([
+      "panic: gorm.Open failed: failed to connect to `user=admin database=t`:",
+      "        [::1]:5432 (localhost): dial error: dial tcp [::1]:5432: connect: connection refused",
+      '        127.0.0.1:5432 (localhost): server error: FATAL: database "t" does not exist (SQLSTATE 3D000)',
+      "",
+      "goroutine 1 [running]:",
+      "main.main()",
+      "\t/Users/x/proj/cmd/main.go:8 +0x7c",
+      "gorm.io/gorm.Open({0x102e3e5c0, 0x14000102000})",
+      "\t/Users/x/go/pkg/mod/gorm.io/gorm@v1.25.5/gorm.go:180 +0x2c",
+      "Process Exit with Code: 2",
+    ]);
+    expect(lines[0].traceStart).toBe(true);
+    expect(lines[0].level).toBe("err");
+    // indented message detail joins the panic block instead of splitting it
+    expect(lines[1].traceId).toBe(lines[0].traceId);
+    expect(lines[2].traceId).toBe(lines[0].traceId);
+    expect(lines[4].traceId).toBe(lines[0].traceId);
+    expect(lines[6].frame).toMatchObject({
+      fn: "main.main",
+      path: "/Users/x/proj/cmd/main.go",
+      line: 8,
+      isApp: true,
+    });
+    expect(lines[8].frame?.isApp).toBe(false);
+    expect(lines[9].traceId).toBeUndefined();
+  });
+
+  it("indented continuations after an err-leveled line join its block", () => {
+    const lines = feed([
+      "2026-07-18T17:20:42.368+0700    ERROR   database/gorm_logger.go:62      failed to initialize database",
+      "    [::1]:5432 (localhost): dial error: connection refused",
+      '    127.0.0.1:5432 (localhost): server error: FATAL: database "t" does not exist',
+      "running fine again",
+    ]);
+    expect(lines[0].traceStart).toBe(true);
+    expect(lines[1].traceId).toBe(lines[0].traceId);
+    expect(lines[2].traceId).toBe(lines[0].traceId);
+    expect(lines[3].traceId).toBeUndefined();
+  });
+
+  it("node error property dumps no longer split the trace", () => {
+    const lines = feed([
+      "KafkaJSNonRetriableError",
+      "    at process.processTimers (node:internal/timers:523:7) {",
+      "  name: 'KafkaJSNumberOfRetriesExceeded',",
+      "  retriable: false,",
+      "}",
+    ]);
+    expect(lines[2].traceId).toBe(lines[0].traceId);
+    expect(lines[3].traceId).toBe(lines[0].traceId);
+  });
+
+  it("go fatal error dumps keep `created by` frames and multiple goroutines", () => {
+    const lines = feed([
+      "fatal error: all goroutines are asleep - deadlock!",
+      "",
+      "goroutine 1 [chan receive]:",
+      "main.wait(0x1400010c000)",
+      "\t/app/wait.go:21 +0x30",
+      "created by main.spawn in goroutine 1",
+      "\t/app/spawn.go:9 +0x44",
+    ]);
+    expect(lines[0].traceStart).toBe(true);
+    expect(lines[4].frame?.fn).toBe("main.wait");
+    expect(lines[6].frame?.fn).toBe("main.spawn");
+    expect(lines[6].traceId).toBe(lines[0].traceId);
   });
 });
 

@@ -1101,28 +1101,31 @@ body.light .docs-preview-editor { color: var(--editor-fg); }
 .log-raw { flex: 1; min-width: 0; }
 
 /* display-only syntax colors — theme vars, so every theme recolors them */
-.log-raw .tok-str { color: var(--green); }
-.log-raw .tok-num { color: var(--blue-2); }
-.log-raw .tok-bool { color: var(--purple); }
-.log-raw .tok-key { color: var(--blue); }
-.log-raw .tok-url { color: var(--blue-2); text-decoration: underline dotted; text-underline-offset: 2px; }
-.log-raw .tok-time { color: var(--orange); }
-.log-raw .tok-uuid { color: var(--purple); opacity: 0.85; }
-.log-raw .tok-br-0 { color: var(--orange); }
-.log-raw .tok-br-1 { color: var(--purple); }
-.log-raw .tok-br-2 { color: var(--blue-2); }
+.log-raw .tok-str, .trace-snippet .tok-str { color: var(--green); }
+.log-raw .tok-num, .trace-snippet .tok-num { color: var(--blue-2); }
+.log-raw .tok-bool, .trace-snippet .tok-bool { color: var(--purple); }
+.log-raw .tok-key, .trace-snippet .tok-key { color: var(--blue); }
+.log-raw .tok-url, .trace-snippet .tok-url { color: var(--blue-2); text-decoration: underline dotted; text-underline-offset: 2px; }
+.log-raw .tok-path, .trace-snippet .tok-path { color: var(--blue-2); }
+.tok-path.tok-link { cursor: pointer; }
+.tok-path.tok-link:hover { text-decoration: underline dotted; text-underline-offset: 2px; }
+.log-raw .tok-time, .trace-snippet .tok-time { color: var(--orange); }
+.log-raw .tok-uuid, .trace-snippet .tok-uuid { color: var(--purple); opacity: 0.85; }
+.log-raw .tok-br-0, .trace-snippet .tok-br-0 { color: var(--orange); }
+.log-raw .tok-br-1, .trace-snippet .tok-br-1 { color: var(--purple); }
+.log-raw .tok-br-2, .trace-snippet .tok-br-2 { color: var(--blue-2); }
 
 /* ANSI SGR colors from the source's own output — mapped onto theme vars */
-.log-raw .ansi-30 { color: var(--text-muted); }
-.log-raw .ansi-31, .log-raw .ansi-91 { color: var(--red); }
-.log-raw .ansi-32, .log-raw .ansi-92 { color: var(--green); }
-.log-raw .ansi-33, .log-raw .ansi-93 { color: var(--orange); }
-.log-raw .ansi-34, .log-raw .ansi-94 { color: var(--blue); }
-.log-raw .ansi-35, .log-raw .ansi-95 { color: var(--purple); }
-.log-raw .ansi-36, .log-raw .ansi-96 { color: var(--blue-2); }
-.log-raw .ansi-37, .log-raw .ansi-97 { color: var(--text-primary, inherit); }
-.log-raw .ansi-90 { color: var(--text-muted); }
-.log-raw .ansi-bold { font-weight: 700; }
+.log-raw .ansi-30, .trace-snippet .ansi-30 { color: var(--text-muted); }
+.log-raw .ansi-31, .log-raw .ansi-91, .trace-snippet .ansi-31, .trace-snippet .ansi-91 { color: var(--red); }
+.log-raw .ansi-32, .log-raw .ansi-92, .trace-snippet .ansi-32, .trace-snippet .ansi-92 { color: var(--green); }
+.log-raw .ansi-33, .log-raw .ansi-93, .trace-snippet .ansi-33, .trace-snippet .ansi-93 { color: var(--orange); }
+.log-raw .ansi-34, .log-raw .ansi-94, .trace-snippet .ansi-34, .trace-snippet .ansi-94 { color: var(--blue); }
+.log-raw .ansi-35, .log-raw .ansi-95, .trace-snippet .ansi-35, .trace-snippet .ansi-95 { color: var(--purple); }
+.log-raw .ansi-36, .log-raw .ansi-96, .trace-snippet .ansi-36, .trace-snippet .ansi-96 { color: var(--blue-2); }
+.log-raw .ansi-37, .log-raw .ansi-97, .trace-snippet .ansi-37, .trace-snippet .ansi-97 { color: var(--text-primary, inherit); }
+.log-raw .ansi-90, .trace-snippet .ansi-90 { color: var(--text-muted); }
+.log-raw .ansi-bold, .trace-snippet .ansi-bold { font-weight: 700; }
 
 /* error lines stay scannable: keep the danger tint on strings too */
 .log-line.lv-err .log-raw .tok-str { color: color-mix(in oklab, var(--status-danger), var(--green) 35%); }
@@ -1228,7 +1231,7 @@ body.light .docs-preview-editor { color: var(--editor-fg); }
 
 .error-dock-title strong {
   color: var(--text-primary);
-  font-size: 0.8462rem;
+  font-size: 0.9231rem;
   font-weight: 650;
   letter-spacing: -0.01em;
 }
@@ -1237,7 +1240,7 @@ body.light .docs-preview-editor { color: var(--editor-fg); }
   min-width: 0;
   overflow: hidden;
   color: var(--text-muted);
-  font: 0.72rem/1.3 var(--font-mono);
+  font: 0.7692rem/1.3 var(--font-mono);
   font-variant-numeric: tabular-nums;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1252,7 +1255,7 @@ body.light .docs-preview-editor { color: var(--editor-fg); }
   padding: 8px 12px;
   border-bottom: 1px solid var(--border-default);
   color: var(--text-muted);
-  font: 0.7692rem/1 var(--font-mono);
+  font: 0.8462rem/1 var(--font-mono);
 }
 
 .error-dock {
@@ -1288,8 +1291,8 @@ body.light .docs-preview-editor { color: var(--editor-fg); }
   background: color-mix(in oklab, var(--status-danger), transparent 92%);
 }
 
-.error-dock-empty strong { color: var(--text-primary); font-size: 0.9231rem; font-weight: 650; }
-.error-dock-empty p { max-width: 28ch; margin: 0; font-size: 0.8462rem; line-height: 1.55; }
+.error-dock-empty strong { color: var(--text-primary); font-size: 1rem; font-weight: 650; }
+.error-dock-empty p { max-width: 28ch; margin: 0; font-size: 0.9231rem; line-height: 1.55; }
 
 /* the detail pane moved to the error-trace tab — the list owns the whole dock now */
 .error-group-list {
@@ -1299,29 +1302,89 @@ body.light .docs-preview-editor { color: var(--editor-fg); }
 }
 
 .error-group {
-  width: 100%;
-  display: grid;
-  gap: 6px;
-  padding: 10px 12px 11px 14px;
-  border: 0;
   border-bottom: 1px solid var(--border-default);
-  background: transparent;
   color: var(--text-secondary);
-  text-align: left;
-  cursor: pointer;
-  transition: background 120ms ease, box-shadow 120ms ease;
 }
 
-.error-group:hover { background: var(--surface-hover); }
+.error-group-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 10px 8px 11px 8px;
+  transition: background 120ms ease;
+}
 
-.error-group.active {
+.error-group-row:hover { background: var(--surface-hover); }
+
+.error-group.expanded > .error-group-row {
   background: color-mix(in oklab, var(--status-danger), transparent 95%);
   box-shadow: inset 2px 0 0 var(--status-danger);
 }
 
-.error-group:active { transform: translateY(1px); }
+.error-group-toggle {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
 
-.error-group:focus-visible { outline: 2px solid var(--accent-secondary); outline-offset: -2px; }
+.error-group-toggle:focus-visible { outline: 2px solid var(--accent-secondary); outline-offset: -2px; }
+
+.error-group-chevron {
+  margin-top: 1px;
+  color: var(--text-muted);
+  transform: rotate(-90deg);
+  transition: transform 200ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.error-group.expanded .error-group-chevron { transform: rotate(0deg); }
+
+.error-group-body {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+}
+
+/* slide-out stack trace: 0fr → 1fr grid track, corporate easing, no overshoot */
+.error-group-expand {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 260ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.error-group.expanded > .error-group-expand { grid-template-rows: 1fr; }
+
+.error-group-expand-inner {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.error-group-expand-inner > * { margin: 0 8px; }
+.error-group-expand-inner > :last-child { margin-bottom: 10px; }
+
+.error-group-stack-summary {
+  padding: 2px 8px 4px;
+  font-size: 0.7692rem;
+  color: var(--text-muted);
+}
+
+.error-group-expand .empty-note {
+  padding: 2px 8px 4px;
+  font-size: 0.8462rem;
+  color: var(--text-muted);
+}
+
+.error-group-expand .trace-frame-list { margin-top: 0; }
+.error-group-expand .trace-frame { font-size: 0.8462rem; gap: 7px; padding: 3px 8px; }
+.error-group-expand .trace-frame span { flex: 1; min-width: 0; text-align: right; }
 
 .error-group-topline,
 .error-group-meta {
@@ -1333,7 +1396,7 @@ body.light .docs-preview-editor { color: var(--editor-fg); }
 
 .error-group-kind {
   color: var(--status-danger);
-  font: 650 0.6923rem/1 var(--font-mono);
+  font: 650 0.7692rem/1 var(--font-mono);
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -1343,14 +1406,14 @@ body.light .docs-preview-editor { color: var(--editor-fg); }
   border-radius: 4px;
   color: var(--status-danger);
   background: color-mix(in oklab, var(--status-danger), transparent 88%);
-  font: 650 0.7692rem/1 var(--font-mono);
+  font: 650 0.8462rem/1 var(--font-mono);
   font-variant-numeric: tabular-nums;
 }
 
-.error-group strong {
+.error-group-body > strong {
   overflow: hidden;
   color: var(--text-primary);
-  font-size: 0.8462rem;
+  font-size: 0.9231rem;
   font-weight: 600;
   line-height: 1.4;
   text-overflow: ellipsis;
@@ -1359,7 +1422,7 @@ body.light .docs-preview-editor { color: var(--editor-fg); }
 
 .error-group-meta {
   color: var(--text-muted);
-  font: 0.72rem/1.3 var(--font-mono);
+  font: 0.7692rem/1.3 var(--font-mono);
 }
 
 .error-group-meta > :first-child {
@@ -1510,7 +1573,7 @@ body.light .docs-preview-editor { color: var(--editor-fg); }
   padding: 6px 10px;
   border-bottom: 1px solid var(--line);
   color: var(--text-3);
-  font: 0.7692rem/1.4 var(--font-mono);
+  font: 0.8462rem/1.4 var(--font-mono);
   flex: none;
 }
 .json-tree-view {
@@ -1565,7 +1628,7 @@ body.light .docs-preview-editor { color: var(--editor-fg); }
 .json-tree-colon,
 .json-tree-punc { color: var(--text-muted); }
 .json-tree-ellipsis { padding: 0 3px; color: var(--text-muted); }
-.json-tree-summary { padding-left: 8px; color: var(--text-muted); font-size: 0.6923rem; font-style: italic; }
+.json-tree-summary { padding-left: 8px; color: var(--text-muted); font-size: 0.7692rem; font-style: italic; }
 .json-dock-empty { min-height: 0; }
 
 /* ── integrated right dock: Overview / Inspect panels ─────────────────── */
@@ -1605,7 +1668,7 @@ body.light .docs-preview-editor { color: var(--editor-fg); }
 
 .inspect-field-count {
   color: var(--text-muted);
-  font: 0.72rem/1 var(--font-mono);
+  font: 0.7692rem/1 var(--font-mono);
   font-variant-numeric: tabular-nums;
 }
 
@@ -1630,7 +1693,7 @@ body.light .docs-preview-editor { color: var(--editor-fg); }
   outline: 0;
   color: var(--text-primary);
   background: transparent;
-  font: 0.7692rem/1.3 var(--font-mono);
+  font: 0.8462rem/1.3 var(--font-mono);
 }
 
 .inspect-search button {
@@ -1680,8 +1743,8 @@ body.light .docs-preview-editor { color: var(--editor-fg); }
   white-space: nowrap;
 }
 
-.inspect-field-main code { color: var(--text-primary); font: 0.9231rem/1.3 var(--font-mono); }
-.inspect-field-main span { color: var(--text-muted); font: 0.8462rem/1.3 var(--font-mono); }
+.inspect-field-main code { color: var(--text-primary); font: 1rem/1.3 var(--font-mono); }
+.inspect-field-main span { color: var(--text-muted); font: 0.9231rem/1.3 var(--font-mono); }
 
 .inspect-field-actions { display: flex; gap: 2px; }
 .inspect-field-actions .tool-btn { width: 24px; height: 24px; padding: 0; }
@@ -1689,7 +1752,7 @@ body.light .docs-preview-editor { color: var(--editor-fg); }
 .inspect-no-fields {
   padding: 16px 10px;
   color: var(--text-muted);
-  font-size: 0.7692rem;
+  font-size: 0.8462rem;
   text-align: center;
 }
 
@@ -1718,21 +1781,21 @@ body.light .docs-preview-editor { color: var(--editor-fg); }
 
 .dock-signal-count {
   flex: none;
-  font-size: 0.7692rem;
+  font-size: 0.8462rem;
   color: var(--status-danger);
 }
 
 .dock-signal-copy { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 
 .dock-signal-copy strong {
-  font-size: 0.8462rem;
+  font-size: 0.9231rem;
   font-weight: 500;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.dock-signal-copy small { font-size: 0.7308rem; color: var(--text-muted); }
+.dock-signal-copy small { font-size: 0.8rem; color: var(--text-muted); }
 
 /* ── error trace tab + retention input ─────────────────────────────────── */
 
@@ -1765,6 +1828,15 @@ body.light .docs-preview-editor { color: var(--editor-fg); }
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
+}
+
+/* pins the trace search bar to the top of .trace-scroll while snippets scroll past it */
+.trace-scroll .trace-search {
+  position: sticky;
+  top: -16px;
+  margin: -14px -20px 0;
+  padding: 5px 20px;
+  z-index: 1;
 }
 
 .trace-head-copy h2 {
@@ -1868,6 +1940,9 @@ body.light .docs-preview-editor { color: var(--editor-fg); }
   background: color-mix(in oklab, var(--status-danger), transparent 88%);
   color: var(--status-danger);
 }
+
+/* mirrors .log-line.lv-err — strings on error lines stay red-tinted, not green */
+.trace-line.err .tok-str { color: color-mix(in oklab, var(--status-danger), var(--green) 35%); }
 
 /* after .err so a selected error line still shows its selection */
 .trace-line.sel {

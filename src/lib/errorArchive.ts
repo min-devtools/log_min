@@ -16,6 +16,8 @@ export interface ArchivedLine {
   stream: LogStream;
   level?: LogLevel;
   traceId?: number;
+  /** terminal SGR spans — kept so snippets render with the same colors as the live view */
+  ansi?: LogLine["ansi"];
 }
 
 export interface ErrorOccurrence {
@@ -51,6 +53,7 @@ export class ErrorArchive {
       stream: line.stream,
       level: line.level,
       traceId: line.traceId,
+      ansi: line.ansi,
     };
     // seq went backwards → buffer was cleared / source restarted: old context is gone
     const prevTail = this.tail[this.tail.length - 1];

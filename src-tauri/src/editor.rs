@@ -1,5 +1,49 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+
+/// directories never worth descending into when resolving a log's relative path
+const SKIP_DIRS: [&str; 7] = [
+    "node_modules",
+    "target",
+    "vendor",
+    "dist",
+    "build",
+    "tmp",
+    ".git",
+];
+
+/// Logger callers often print only the tail of a path (zap: `pkg/file.go:16`).
+/// Walk `base` breadth-first and return the first directory where `rel` exists.
+fn find_by_suffix(base: &Path, rel: &Path) -> Option<PathBuf> {
+    let mut queue = vec![base.to_path_buf()];
+    let mut visited = 0usize;
+    while let Some(dir) = queue.pop() {
+        visited += 1;
+        if visited > 5_000 {
+            return None; // ponytail: budget walk — huge monorepos just fall back to copy
+        }
+        let candidate = dir.join(rel);
+        if candidate.is_file() {
+            return Some(candidate);
+        }
+        let Ok(entries) = std::fs::read_dir(&dir) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let p = entry.path();
+            if !p.is_dir() {
+                continue;
+            }
+            let name = entry.file_name();
+            let name = name.to_string_lossy();
+            if name.starts_with('.') || SKIP_DIRS.contains(&name.as_ref()) {
+                continue;
+            }
+            queue.push(p);
+        }
+    }
+    None
+}
 
 struct EditorInvocation {
     programs: Vec<&'static str>,
@@ -61,18 +105,33 @@ fn editor_invocation(
     }
 }
 
-pub fn open_editor(editor: &str, path: &str, line: u32, col: Option<u32>) -> Result<(), String> {
+pub fn open_editor(
+    editor: &str,
+    path: &str,
+    line: u32,
+    col: Option<u32>,
+    base: Option<&str>,
+) -> Result<(), String> {
     if line == 0 {
         return Err("line must be greater than zero".into());
     }
-    if !Path::new(path).is_absolute() {
+    let mut resolved = PathBuf::from(path);
+    if !resolved.is_file() {
+        // relative caller path (zap prints only `pkg/file.go`) — locate it under the base dir
+        let rel = Path::new(path);
+        let found = base
+            .filter(|_| rel.is_relative())
+            .and_then(|b| find_by_suffix(Path::new(b), rel));
+        match found {
+            Some(p) => resolved = p,
+            None => return Err(format!("source file does not exist: {path}")),
+        }
+    }
+    if !resolved.is_absolute() {
         return Err("source path is not absolute".into());
     }
-    if !Path::new(path).is_file() {
-        return Err(format!("source file does not exist: {path}"));
-    }
-
-    let invocation = editor_invocation(editor, path, line, col)?;
+    let path = resolved.to_string_lossy();
+    let invocation = editor_invocation(editor, &path, line, col)?;
     let mut last_error = None;
     for program in invocation.programs {
         if program.contains('/') && !Path::new(program).is_file() {
@@ -122,5 +181,19 @@ mod tests {
     #[test]
     fn rejects_unknown_editors_instead_of_spawning_arbitrary_programs() {
         assert!(editor_invocation("shell", "/tmp/main.ts", 1, None).is_err());
+    }
+
+    #[test]
+    fn resolves_a_logger_path_tail_under_a_nested_directory() {
+        let base = std::env::temp_dir().join("logmin_suffix_test");
+        let nested = base.join("internal/pkg/database");
+        std::fs::create_dir_all(&nested).unwrap();
+        std::fs::write(nested.join("postgres.go"), "x").unwrap();
+
+        let found = find_by_suffix(&base, Path::new("database/postgres.go")).unwrap();
+        assert!(found.ends_with("internal/pkg/database/postgres.go"));
+
+        assert!(find_by_suffix(&base, Path::new("database/missing.go")).is_none());
+        std::fs::remove_dir_all(&base).ok();
     }
 }

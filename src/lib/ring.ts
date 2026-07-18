@@ -1,6 +1,6 @@
 import type { LogLine } from "./types";
 
-export const RING_CAP = 200_000;
+export const RING_CAP = 100_000;
 /** raw-text budget per source — 200k tiny objects can outweigh the log itself */
 export const RING_BYTE_CAP = 64 * 1024 * 1024;
 /** evict in chunks so we don't shift the array on every batch once full */

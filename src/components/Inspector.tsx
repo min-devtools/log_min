@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
-import { INITIAL_DOCK_TAB, dockTabNext, type DockTab, type DockTabEvent } from "../lib/dockTab";
+import type { DockTab } from "../lib/dockTab";
 import { errorIndexFor } from "../lib/errors";
 import { shouldAutoRouteJson } from "../lib/json";
 import { useApp } from "../store";
@@ -23,14 +23,24 @@ export function Inspector() {
   const jumpToLine = useApp((state) => state.jumpToLine);
   const openErrorTab = useApp((state) => state.openErrorTab);
 
-  const [dock, setDock] = useState(INITIAL_DOCK_TAB);
-  const dispatch = (event: DockTabEvent) => setDock((state) => dockTabNext(state, event));
+  const dock = useApp((state) => state.dockTab);
+  const dispatch = useApp((state) => state.dispatchDockTab);
 
   const line = inspectLine?.sourceId === sourceId ? inspectLine : null;
+  // an error-trace tab always shows its stack in the Errors dock, expanded
+  const errorTabId = activeTab?.kind === "error-trace" ? activeTab.id : null;
+  const autoExpandFingerprint = activeTab?.kind === "error-trace" ? activeTab.fingerprint : undefined;
 
   useEffect(() => {
-    setDock(INITIAL_DOCK_TAB);
+    dispatch({ type: "source-change" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sourceId]);
+
+  // runs after the source-change reset above so landing on an error tab always wins
+  useEffect(() => {
+    if (errorTabId) dispatch({ type: "manual", tab: "errors" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [errorTabId]);
 
   // a plain click routes the dock; clearing the last selection returns to Overview.
   // keyed on object identity: every explicit gesture publishes a fresh snapshot,
@@ -83,7 +93,14 @@ export function Inspector() {
         <InspectPanel line={line} onCopy={handleCopy} onJump={(seq) => sourceId && jumpToLine(sourceId, seq)} />
       )}
       {dock.tab === "json" && <JsonPanel line={line} onCopy={handleCopy} />}
-      {dock.tab === "errors" && <ErrorsPanel sourceId={sourceId} source={source} snapshot={snapshot} />}
+      {dock.tab === "errors" && (
+        <ErrorsPanel
+          sourceId={sourceId}
+          source={source}
+          snapshot={snapshot}
+          autoExpandFingerprint={autoExpandFingerprint}
+        />
+      )}
     </aside>
   );
 }

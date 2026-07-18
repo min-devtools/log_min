@@ -15,8 +15,8 @@ export function Dialog() {
     }
   }, [dialog]);
 
-  // Enter confirms, Esc cancels — capture phase so open dialogs swallow the key
-  // before LogView/Sidebar global shortcuts (Esc closes search, ⌫ removes source)
+  // Enter confirms, Esc cancels — capture phase so an open dialog swallows the key
+  // before app-level global shortcuts (⌘⌫ delete, Esc closes palette/search) see it.
   useEffect(() => {
     if (!dialog) return;
     const onKey = (e: KeyboardEvent) => {
@@ -41,7 +41,7 @@ export function Dialog() {
 
   return (
     <div className="modal" onMouseDown={(e) => { if (e.target === e.currentTarget) cancel(); }}>
-      <div className="prompt-dialog">
+      <div className="prompt-dialog" role="dialog" aria-modal="true" aria-label={dialog.title}>
         <strong>{dialog.title}</strong>
         {dialog.message && <p className="prompt-dialog-msg">{dialog.message}</p>}
         {dialog.kind === "prompt" && (
@@ -57,6 +57,7 @@ export function Dialog() {
         <div className="prompt-dialog-foot">
           <ToolButton onClick={cancel}>Cancel</ToolButton>
           <ToolButton
+            autoFocus={dialog.kind === "confirm"}
             variant={dialog.danger ? "danger" : "primary"}
             disabled={dialog.kind === "prompt" && !value.trim()}
             onClick={submit}

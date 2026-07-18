@@ -38,6 +38,18 @@ describe("tokenizeLogLine", () => {
     expect(tokenizeLogLine("server started successfully")).toEqual([]);
   });
 
+  it("colors file:line refs whole, urls with ports stay urls", () => {
+    expect(toks("ERROR database/postgres.go:16 connecting")).toEqual([
+      ["database/postgres.go:16", "tok-path"],
+    ]);
+    expect(toks("at src/app.ts:12:3 boom")).toEqual([["src/app.ts:12:3", "tok-path"]]);
+    expect(toks("see https://x.dev:8080/a")).toEqual([["https://x.dev:8080/a", "tok-url"]]);
+    // absolute paths match from the leading slash — not from inside a dashed segment
+    expect(toks("\t/Users/qc-bright/Project/mine/cmd/main.go:8 +0x7c")).toEqual([
+      ["/Users/qc-bright/Project/mine/cmd/main.go:8", "tok-path"],
+    ]);
+  });
+
   it("colors timestamps and uuids whole, not their digit fragments", () => {
     expect(toks("2026-07-17T04:05:16.123Z req=550e8400-e29b-41d4-a716-446655440000 took 42")).toEqual([
       ["2026-07-17T04:05:16.123Z", "tok-time"],
