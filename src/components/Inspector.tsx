@@ -69,16 +69,16 @@ export function Inspector() {
   return (
     <aside className="inspector error-inspector">
       <div className="inspector-head">
-        <MiniTabs
-          tabs={[
-            { id: "overview", label: "Overview" },
-            { id: "inspect", label: "Inspect" },
-            { id: "json", label: "JSON" },
-            { id: "errors", label: `Errors${snapshot.groups.length ? ` · ${snapshot.groups.length}` : ""}` },
-          ]}
-          active={dock.tab}
-          onChange={(id) => dispatch({ type: "manual", tab: id as DockTab })}
-        />
+          <MiniTabs
+            tabs={[
+              { id: "overview", label: "Overview", icon: "layout-grid", title: "Overview" },
+              { id: "inspect", label: "Inspect", icon: "eye", title: "Inspect" },
+              { id: "json", label: "JSON", icon: "braces", title: "JSON" },
+              { id: "errors", label: "Errors", icon: "zap", title: `Errors${snapshot.groups.length ? ` (${snapshot.groups.length})` : ""}` },
+            ]}
+            active={dock.tab}
+            onChange={(id) => dispatch({ type: "manual", tab: id as DockTab })}
+          />
       </div>
 
       {dock.tab === "overview" && sourceId && (

@@ -1,6 +1,11 @@
+import type { IconName } from "./Icon";
+import { Icon } from "./Icon";
+
 export interface MiniTab {
   id: string;
   label: string;
+  icon?: IconName;
+  title?: string;
 }
 
 export function MiniTabs({
@@ -18,10 +23,12 @@ export function MiniTabs({
         <button
           key={t.id}
           type="button"
-          className={t.id === active ? "active" : ""}
+          className={`${t.id === active ? "active" : ""} ${t.icon ? "icon-only" : ""}`}
+          title={t.title ?? t.label}
+          aria-label={t.label}
           onClick={() => onChange(t.id)}
         >
-          {t.label}
+          {t.icon ? <Icon name={t.icon} size={13} /> : t.label}
         </button>
       ))}
     </div>

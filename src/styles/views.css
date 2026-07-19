@@ -1167,27 +1167,6 @@ body.light .docs-preview-editor { color: var(--editor-fg); }
 .log-copy:hover { color: var(--text-primary); background: var(--surface-hover); }
 .log-copy:active { transform: translateY(1px); }
 
-.log-follow-pill {
-  position: absolute;
-  right: 24px;
-  bottom: 44px;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 5px 12px;
-  border-radius: 99px;
-  border: 1px solid var(--border-strong);
-  background: var(--surface-overlay);
-  color: var(--text-primary);
-  font-family: var(--font-mono);
-  font-size: 0.8462rem;
-  cursor: pointer;
-  box-shadow: var(--shadow);
-  backdrop-filter: blur(6px);
-}
-
-.log-follow-pill:hover { background: var(--surface-hover); }
-
 .log-stdin {
   display: flex;
   align-items: center;

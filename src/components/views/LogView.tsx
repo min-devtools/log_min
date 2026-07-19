@@ -4,6 +4,7 @@ import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { save } from "@tauri-apps/plugin-dialog";
 import { useShallow } from "zustand/react/shallow";
 import { Combobox } from "../../ui/Combobox";
+import { SectionVeil } from "../../ui/SectionVeil";
 import { ToolButton } from "../../ui/ToolButton";
 import { Icon } from "../../ui/Icon";
 import { runtimeOf, useApp } from "../../store";
@@ -486,7 +487,6 @@ export function LogView({ sourceId, active }: Props) {
     : ring.slice(range[0], range[1]);
   const picks = selection?.picks;
   const selectedCount = picks?.size ?? 0;
-  const newSincePause = follow ? 0 : Math.max(0, ring.totalSeen - pausedAtRef.current);
   const qRaw = searchOpen ? query.trim() : "";
   const q = caseSensitive ? qRaw : qRaw.toLowerCase();
   const wrappedItems = wrap ? wrappedVirtualizer.getVirtualItems() : [];
@@ -610,55 +610,72 @@ export function LogView({ sourceId, active }: Props) {
         </div>
         <div className="log-toolbar-actions">
           {selectedCount > 0 && (
-            <ToolButton className="log-copy-selection" title="Copy selected raw lines (⌘C)" onClick={() => void copySelection()}>
-              <Icon name="copy" /> Copy {fmtInt(selectedCount)} line{selectedCount === 1 ? "" : "s"}
+            <ToolButton
+              iconOnly
+              className="log-copy-selection"
+              title={`Copy ${fmtInt(selectedCount)} selected line${selectedCount === 1 ? "" : "s"} (⌘C)`}
+              aria-label="Copy selected lines"
+              onClick={() => void copySelection()}
+            >
+              <Icon name="copy" />
             </ToolButton>
           )}
           {isCmd && !live && (
-            <ToolButton variant="primary" title="Start (▶)" onClick={() => void startSource(sourceId)}>
-              <Icon name="play" /> Start
+            <ToolButton
+              iconOnly
+              variant="primary"
+              title="Start (▶)"
+              aria-label="Start"
+              onClick={() => void startSource(sourceId)}
+            >
+              <Icon name="play" />
             </ToolButton>
           )}
           {isCmd && live && (
             <>
-              <ToolButton title="Restart" onClick={() => void startSource(sourceId)}>
-                <Icon name="refresh" /> Restart
+              <ToolButton iconOnly title="Restart" aria-label="Restart" onClick={() => void startSource(sourceId)}>
+                <Icon name="refresh" />
               </ToolButton>
-              <ToolButton title="Stop (kills the whole process tree)" onClick={() => void stopSource(sourceId)}>
-                <Icon name="stop" /> Stop
+              <ToolButton iconOnly title="Stop (kills the whole process tree)" aria-label="Stop" onClick={() => void stopSource(sourceId)}>
+                <Icon name="stop" />
               </ToolButton>
             </>
           )}
           {!isCmd && (
             <ToolButton
+              iconOnly
               title={live ? "Stop" : def.kind === "http" ? "Start streaming" : "Start tailing"}
+              aria-label={live ? "Stop" : def.kind === "http" ? "Stream" : "Tail"}
               onClick={() => void (live ? stopSource(sourceId) : startSource(sourceId))}
             >
-              <Icon name={live ? "stop" : "play"} /> {live ? "Stop" : def.kind === "http" ? "Stream" : "Tail"}
+              <Icon name={live ? "stop" : "play"} />
             </ToolButton>
           )}
           <ToolButton
+            iconOnly
             title={follow ? "Pause follow (⌘↵)" : "Resume follow (⌘↵)"}
             aria-label="Toggle follow"
             aria-pressed={follow}
             className={`log-view-toggle ${follow ? "active" : ""}`}
             onClick={() => (follow ? setFollow(false) : resumeFollow())}
           >
-            <Icon name="arrow-down" /> {follow ? "Following" : "Paused"}
+            <Icon name="arrow-down" />
           </ToolButton>
           <ToolButton
+            iconOnly
             title={wrap ? "Disable live wrap" : "Wrap long log lines"}
             aria-label="Toggle live wrap"
             aria-pressed={wrap}
             className={`log-view-toggle ${wrap ? "active" : ""}`}
             onClick={() => setWrap((value) => !value)}
           >
-            <Icon name="rows" /> Wrap
+            <Icon name="wrap-text" />
           </ToolButton>
           {(["err", "warn"] as const).map((lv) => (
             <ToolButton
               key={lv}
-              title={levelFilter.has(lv) ? `Show all levels again` : `Show only ${lv === "err" ? "error" : "warning"} lines (live)`}
+              iconOnly
+              title={levelFilter.has(lv) ? "Show all levels again" : `Show only ${lv === "err" ? "error" : "warning"} lines (live)`}
               aria-label={`Filter ${lv} lines`}
               aria-pressed={levelFilter.has(lv)}
               className={`log-view-toggle lv-chip-${lv} ${levelFilter.has(lv) ? "active" : ""}`}
@@ -671,17 +688,18 @@ export function LogView({ sourceId, active }: Props) {
                 })
               }
             >
-              {lv === "err" ? "Err" : "Warn"}
+              <Icon name={lv === "err" ? "alert-circle" : "alert-triangle"} />
             </ToolButton>
           ))}
           <ToolButton
+            iconOnly
             title={syntax ? "Disable syntax colors" : "Color strings, numbers, keys and brackets"}
             aria-label="Toggle syntax colors"
             aria-pressed={syntax}
             className={`log-view-toggle ${syntax ? "active" : ""}`}
             onClick={() => setSyntax((value) => !value)}
           >
-            <Icon name="sparkles" /> Syntax
+            <Icon name="sparkles" />
           </ToolButton>
           <ToolButton
             iconOnly
@@ -835,14 +853,14 @@ export function LogView({ sourceId, active }: Props) {
                 return renderLogLine(line, idx, { top: idx * rowH, height: rowH });
               })}
         </div>
-        {total === 0 && (
+        {/* startup only: streaming batches clear it as soon as the first line lands */}
+        <SectionVeil on={live && total === 0 && !viewIdx} label="Waiting for output…" />
+        {total === 0 && !(live && !viewIdx) && (
           <div className="empty-note" style={{ padding: 24 }}>
             {viewIdx
               ? filterQ
                 ? `No lines match “${filterQ}”. New matching output will appear here.`
                 : "No matching lines yet. New matching output will appear here."
-              : live
-              ? "Waiting for output…"
               : isCmd
                 ? "Press Start to run the command."
                 : def.kind === "http"
@@ -851,12 +869,6 @@ export function LogView({ sourceId, active }: Props) {
           </div>
         )}
       </div>
-
-      {!follow && newSincePause > 0 && (
-        <button type="button" className="log-follow-pill" onClick={resumeFollow}>
-          <Icon name="arrow-down" size={13} /> {fmtInt(newSincePause)} new lines
-        </button>
-      )}
 
       {isCmd && live && (
         <div className="log-stdin">

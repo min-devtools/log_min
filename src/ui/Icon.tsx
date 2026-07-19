@@ -1,6 +1,8 @@
 import type { CSSProperties } from "react";
 import {
   Activity,
+  AlertCircle,
+  AlertTriangle,
   ArrowDown,
   Braces,
   Check,
@@ -14,6 +16,7 @@ import {
   Copy,
   Database,
   Download,
+  Eye,
   Files,
   Filter,
   FolderPlus,
@@ -24,6 +27,7 @@ import {
   Key,
   Keyboard,
   Layers,
+  LayoutGrid,
   Minimize2,
   Moon,
   MoreHorizontal,
@@ -47,6 +51,7 @@ import {
   Trash2,
   UnfoldVertical,
   Users,
+  WrapText,
   X,
   Zap,
   type LucideIcon,
@@ -54,6 +59,8 @@ import {
 
 const ICONS = {
   activity: Activity,
+  "alert-circle": AlertCircle,
+  "alert-triangle": AlertTriangle,
   "arrow-down": ArrowDown,
   "arrow-left": ChevronLeft,
   "arrow-right": ChevronRight,
@@ -68,6 +75,7 @@ const ICONS = {
   database: Database,
   docs: Files,
   download: Download,
+  eye: Eye,
   filter: Filter,
   fold: FoldVertical,
   "folder-plus": FolderPlus,
@@ -77,6 +85,7 @@ const ICONS = {
   history: History,
   key: Key,
   keyboard: Keyboard,
+  "layout-grid": LayoutGrid,
   minify: Minimize2,
   moon: Moon,
   "more-horizontal": MoreHorizontal,
@@ -101,6 +110,7 @@ const ICONS = {
   topics: Layers,
   trash: Trash2,
   unfold: UnfoldVertical,
+  "wrap-text": WrapText,
   x: X,
   zap: Zap,
 } satisfies Record<string, LucideIcon>;

@@ -216,19 +216,23 @@ export function ErrorTraceView({ sourceId, fingerprint, title, active }: Props) 
               <Icon name="search" size={13} />
             </ToolButton>
             <ToolButton
+              iconOnly
               title={wrap ? "Disable snippet wrap" : "Wrap long snippet lines"}
+              aria-label="Toggle wrap"
               aria-pressed={wrap}
               className={wrap ? "active" : ""}
               onClick={toggleWrap}
             >
-              <Icon name="rows" size={13} /> Wrap
+              <Icon name="wrap-text" size={13} />
             </ToolButton>
             {group && (
               <ToolButton
+                iconOnly
                 title={group.frames.length ? "Copy the complete latest stack trace" : "Copy the complete raw error"}
+                aria-label="Copy latest occurrence"
                 onClick={() => void copy(group.rawLines.join("\n"), "Latest raw occurrence.")}
               >
-                <Icon name="copy" size={13} /> Copy latest
+                <Icon name="copy" size={13} />
               </ToolButton>
             )}
           </div>
