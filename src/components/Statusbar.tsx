@@ -67,7 +67,6 @@ export function Statusbar() {
         {rt && (
           <>
             <span>{fmtInt(rt.lines)} lines</span>
-            <span style={rt.errors ? { color: "var(--red)" } : undefined}>{fmtInt(rt.errors)} errors</span>
             {rt.dropped > 0 && <span style={{ color: "var(--orange)" }}>drop: {fmtInt(rt.dropped)}</span>}
           </>
         )}

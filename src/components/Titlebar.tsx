@@ -10,7 +10,7 @@ export function Titlebar() {
   const sourceCount = useApp((s) => s.sources.length);
   // primitive selector: batches touch runtimes constantly, the count rarely changes
   const liveCount = useApp((s) => s.sources.filter((x) => s.runtimes[x.id]?.status === "live").length);
-  const { toggleTheme, toggleCompact, setCommandOpen, openTab, editSource } = useApp.getState();
+  const { toggleTheme, toggleCompact, setCommandOpen, editSource, openTab } = useApp.getState();
 
   const tone = liveCount ? "green" : "idle";
   const label = liveCount

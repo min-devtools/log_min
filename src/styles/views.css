@@ -219,7 +219,7 @@ body.light .editor-pane { background: var(--editor-bg); }
   border: 1px solid var(--line);
   border-radius: 999px;
   background: var(--pane-2);
-  cursor: pointer;
+  cursor: default;
   font: 0.8462rem/1 var(--font-mono);
 }
 
@@ -486,7 +486,7 @@ body.light .docs-preview-editor { color: var(--editor-fg); }
   border: 1px solid var(--line-2);
   border-radius: 14px;
   background: color-mix(in oklab, var(--pane), transparent 4%);
-  cursor: pointer;
+  cursor: default;
   transition: border-color 120ms ease, background 120ms ease, transform 120ms ease;
 }
 
@@ -797,7 +797,7 @@ body.light .docs-preview-editor { color: var(--editor-fg); }
   border: 0;
   background: var(--pane-2);
   color: var(--text-3);
-  cursor: pointer;
+  cursor: default;
   font: 700 0.8462rem/1 var(--font-mono);
   letter-spacing: 0.05em;
 }
@@ -836,7 +836,7 @@ body.light .docs-preview-editor { color: var(--editor-fg); }
   background: transparent;
   color: var(--text-3);
   font-size: 1rem;
-  cursor: pointer;
+  cursor: default;
 }
 
 .condition-remove:hover { color: var(--red); background: var(--pane-3); }
@@ -879,7 +879,7 @@ body.light .docs-preview-editor { color: var(--editor-fg); }
   padding: 0 4px;
   border-radius: 4px;
   color: var(--text-3);
-  cursor: pointer;
+  cursor: default;
 }
 
 .th-remove:hover { color: var(--red); background: var(--pane-3); }
@@ -1107,7 +1107,7 @@ body.light .docs-preview-editor { color: var(--editor-fg); }
 .log-raw .tok-key, .trace-snippet .tok-key { color: var(--blue); }
 .log-raw .tok-url, .trace-snippet .tok-url { color: var(--blue-2); text-decoration: underline dotted; text-underline-offset: 2px; }
 .log-raw .tok-path, .trace-snippet .tok-path { color: var(--blue-2); }
-.tok-path.tok-link { cursor: pointer; }
+.tok-path.tok-link { cursor: default; }
 .tok-path.tok-link:hover { text-decoration: underline dotted; text-underline-offset: 2px; }
 .log-raw .tok-time, .trace-snippet .tok-time { color: var(--orange); }
 .log-raw .tok-uuid, .trace-snippet .tok-uuid { color: var(--purple); opacity: 0.85; }
@@ -1154,7 +1154,7 @@ body.light .docs-preview-editor { color: var(--editor-fg); }
   border-radius: 5px;
   background: var(--surface-raised);
   color: var(--text-muted);
-  cursor: pointer;
+  cursor: default;
   padding: 0;
 }
 
@@ -1311,7 +1311,7 @@ body.light .docs-preview-editor { color: var(--editor-fg); }
   background: transparent;
   color: inherit;
   text-align: left;
-  cursor: pointer;
+  cursor: default;
 }
 
 .error-group-toggle:focus-visible { outline: 2px solid var(--accent-secondary); outline-offset: -2px; }
@@ -1454,7 +1454,7 @@ body.light .docs-preview-editor { color: var(--editor-fg); }
   border: 1px solid var(--border-default);
   border-radius: 12px;
   background: var(--surface-panel);
-  cursor: pointer;
+  cursor: default;
   text-align: left;
   font: inherit;
   color: var(--text-secondary);
@@ -1505,7 +1505,7 @@ body.light .docs-preview-editor { color: var(--editor-fg); }
   border: none;
   border-top: 1px solid var(--border-default);
   background: none;
-  cursor: pointer;
+  cursor: default;
   text-align: left;
   font: inherit;
   color: var(--text-secondary);
@@ -1592,7 +1592,7 @@ body.light .docs-preview-editor { color: var(--editor-fg); }
   border: 0;
   border-radius: 4px;
   background: transparent;
-  cursor: pointer;
+  cursor: default;
 }
 .json-tree-toggle:hover { color: var(--text-primary); background: var(--surface-hover); }
 .json-tree-toggle svg { transition: transform 100ms ease; }
@@ -1684,7 +1684,7 @@ body.light .docs-preview-editor { color: var(--editor-fg); }
   color: var(--text-muted);
   border: 0;
   background: transparent;
-  cursor: pointer;
+  cursor: default;
 }
 
 .inspect-field-list {
@@ -1704,7 +1704,7 @@ body.light .docs-preview-editor { color: var(--editor-fg); }
   border-bottom: 1px solid var(--border-subtle);
 }
 
-.inspect-pair { cursor: pointer; }
+.inspect-pair { cursor: default; }
 
 .inspect-field:last-child { border-bottom: 0; }
 .inspect-field:hover { background: var(--surface-hover); }
@@ -1752,7 +1752,7 @@ body.light .docs-preview-editor { color: var(--editor-fg); }
   border-radius: 8px;
   background: var(--surface-raised);
   color: inherit;
-  cursor: pointer;
+  cursor: default;
   text-align: left;
 }
 
@@ -1844,7 +1844,7 @@ body.light .docs-preview-editor { color: var(--editor-fg); }
 .trace-origin > code { color: var(--text-secondary); font-size: 0.7692rem; overflow-wrap: anywhere; }
 
 .trace-stack summary {
-  cursor: pointer;
+  cursor: default;
   font-size: 0.8462rem;
   color: var(--text-secondary);
   user-select: none;
@@ -1862,7 +1862,7 @@ body.light .docs-preview-editor { color: var(--editor-fg); }
   border-radius: 6px;
   background: transparent;
   color: inherit;
-  cursor: pointer;
+  cursor: default;
   text-align: left;
   font-size: 0.8077rem;
 }
@@ -1906,7 +1906,7 @@ body.light .docs-preview-editor { color: var(--editor-fg); }
   user-select: text;
 }
 
-.trace-line { display: block; padding: 0 12px; white-space: pre; cursor: pointer; }
+.trace-line { display: block; padding: 0 12px; white-space: pre; cursor: default; }
 
 .trace-snippet.wrap .trace-line {
   white-space: pre-wrap;
