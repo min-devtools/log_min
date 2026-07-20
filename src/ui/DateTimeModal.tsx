@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ToolButton } from "./ToolButton";
 import { Icon } from "./Icon";
 
@@ -57,6 +57,19 @@ export function DateTimeModal({ value, onApply, onClose }: Props) {
     const d = new Date(selected.y, selected.m, selected.d, Number(h), Number(mi), Number(s));
     onApply(toLocalStamp(d));
   };
+
+  // Enter applies, Esc cancels — capture phase, same as Dialog.tsx
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Enter" && e.key !== "Escape") return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.key === "Escape") onClose();
+      else apply();
+    };
+    document.addEventListener("keydown", onKey, true);
+    return () => document.removeEventListener("keydown", onKey, true);
+  }, [onClose, apply]);
 
   const now = new Date();
   const isToday = (c: { y: number; m: number; d: number }) =>
