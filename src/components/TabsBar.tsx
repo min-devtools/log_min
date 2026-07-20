@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { useApp } from "../store";
+import { connStyle } from "../lib/connColor";
 import { ContextMenu } from "../ui/ContextMenu";
 import { Icon } from "../ui/Icon";
 
 export function TabsBar() {
   const tabs = useApp((s) => s.tabs);
+  const sources = useApp((s) => s.sources);
+  const collections = useApp((s) => s.collections);
   const activeTabId = useApp((s) => s.activeTabId);
   const { activateTab, closeTab, editSource, renameTab, reorderTab } = useApp.getState();
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -13,6 +16,12 @@ export function TabsBar() {
   const [dragId, setDragId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const activeRef = useRef<HTMLButtonElement>(null);
+
+  // the bar scrolls, so a tab reached by ⌘1-9 / the palette / a close can be off-screen
+  useEffect(() => {
+    activeRef.current?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [activeTabId]);
 
   useEffect(() => {
     if (editingId) inputRef.current?.select();
@@ -28,12 +37,18 @@ export function TabsBar() {
 
   return (
     <nav className="tabs">
-      {tabs.map((tab) => (
+      {tabs.map((tab) => {
+        // tabs are source-bound; the identity color lives on the source's collection
+        const src = tab.sourceId ? sources.find((s) => s.id === tab.sourceId) : undefined;
+        const col = src?.collectionId ? collections.find((c) => c.id === src.collectionId) : undefined;
+        return (
         <button
           key={tab.id}
+          ref={tab.id === activeTabId ? activeRef : undefined}
           type="button"
           draggable={!editingId}
           className={`tab ${tab.id === activeTabId ? "active" : ""} ${dragId === tab.id ? "dragging" : ""} ${overId === tab.id && dragId && dragId !== tab.id ? "drag-over" : ""}`}
+          style={connStyle(col?.color)}
           onClick={() => activateTab(tab.id)}
           onAuxClick={(e) => {
             // middle-click closes the tab
@@ -71,8 +86,9 @@ export function TabsBar() {
             setDragId(null);
             setOverId(null);
           }}
-          title={tab.kind === "source" ? "Double-click to rename · right-click for menu" : undefined}
+          title={col && col.name !== tab.title ? `${tab.title} · ${col.name}` : tab.kind === "source" ? "Double-click to rename · right-click for menu" : undefined}
         >
+          {col && <span className="conn-dot" />}
           <Icon name={tab.icon} className={tab.iconClass} />
           {editingId === tab.id ? (
             <input
@@ -92,6 +108,10 @@ export function TabsBar() {
           ) : (
             <span>{tab.title}</span>
           )}
+          {col && !editingId && col.name !== tab.title && (
+            // a tab already titled after its owner would just repeat the name
+            <span className="tab-conn">{col.name}</span>
+          )}
           <span
             className="tab-close"
             title={`Close ${tab.title} (⌘W)`}
@@ -104,7 +124,8 @@ export function TabsBar() {
             <Icon name="x" size={13} />
           </span>
         </button>
-      ))}
+        );
+      })}
       <button
         type="button"
         className="tab-add"

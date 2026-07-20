@@ -1,4 +1,5 @@
 import type { IconName } from "../ui/Icon";
+import type { ConnColor } from "./connColor";
 
 export type SourceKind = "file" | "cmd" | "http";
 
@@ -6,6 +7,8 @@ export type SourceKind = "file" | "cmd" | "http";
 export interface CollectionDef {
   id: string;
   name: string;
+  /** user-assigned identity color, drawn as the dot on every tab bound to this collection */
+  color?: ConnColor;
 }
 
 /** persisted definition of a source (tauri-plugin-store log.json) */

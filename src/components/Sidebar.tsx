@@ -3,6 +3,8 @@ import { useShallow } from "zustand/react/shallow";
 import { Badge } from "../ui/Badge";
 import { ContextMenu, type ContextMenuItem } from "../ui/ContextMenu";
 import { newSourceId, useApp } from "../store";
+import { connStyle } from "../lib/connColor";
+import { ColorPicker } from "../ui/ColorPicker";
 import { sourceIcon } from "../lib/types";
 import type { CollectionDef, SourceDef, SourceStatus, TabKind } from "../lib/types";
 import { Icon, type IconName } from "../ui/Icon";
@@ -23,6 +25,7 @@ export function Sidebar() {
   const [filter, setFilter] = useState("");
   const [menu, setMenu] = useState<{ x: number; y: number; id: string } | null>(null);
   const [colMenu, setColMenu] = useState<{ x: number; y: number; id: string } | null>(null);
+  const [pickingColor, setPickingColor] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState<Set<string>>(() => {
     try { return new Set(JSON.parse(localStorage.getItem(COLLAPSED_KEY) ?? "[]") as string[]); }
     catch { return new Set(); }
@@ -45,7 +48,7 @@ export function Sidebar() {
   const {
     openTab, openSourceTab, editSource, deleteSource, startSource, stopSource,
     openDialog, saveSource, showToast, createCollection, renameCollection,
-    deleteCollection, reorderCollection, moveSource,
+    deleteCollection, reorderCollection, moveSource, setCollections,
   } = useApp.getState();
   const statusOf = (id: string): SourceStatus => statuses[id] ?? "idle";
 
@@ -262,6 +265,7 @@ export function Sidebar() {
   const colMenuItems: ContextMenuItem[] = menuCollection
     ? [
         { icon: "pencil", label: "Rename", onClick: () => void renameCol(menuCollection) },
+        { icon: "status", label: "Set color…", onClick: () => setPickingColor(menuCollection.id) },
         { icon: "trash", label: "Delete (keep sources)", onClick: () => removeCol(menuCollection) },
       ]
     : [];
@@ -330,7 +334,7 @@ export function Sidebar() {
               >
                 <button
                   type="button"
-                  className={`nav-item collection-node ${dropIndicator === `col:${c.id}` ? "drop-prefix" : ""}`}
+                  className={`nav-item collection-node with-conn-dot ${dropIndicator === `col:${c.id}` ? "drop-prefix" : ""}`}
                   draggable
                   aria-expanded={!isCollapsed}
                   onDragStart={(e) => startDrag(e, { kind: "collection", id: c.id })}
@@ -342,6 +346,11 @@ export function Sidebar() {
                   }}
                 >
                   <Icon name="chevron-down" className="collection-chevron" size={13} />
+                  <span
+                    className="conn-dot"
+                    style={connStyle(c.color)}
+                    title={c.color ? `Color: ${c.color}` : "No color — set one from the right-click menu"}
+                  />
                   <span>{c.name}</span>
                   <Badge>{members.length || ""}</Badge>
                 </button>
@@ -372,6 +381,17 @@ export function Sidebar() {
       )}
       {colMenu && (
         <ContextMenu x={colMenu.x} y={colMenu.y} items={colMenuItems} onClose={() => setColMenu(null)} />
+      )}
+      {pickingColor && (
+        <ColorPicker
+          value={collections.find((c) => c.id === pickingColor)?.color}
+          onPick={(color) =>
+            setCollections(
+              collections.map((c) => (c.id === pickingColor ? { ...c, color: color ?? undefined } : c)),
+            )
+          }
+          onClose={() => setPickingColor(null)}
+        />
       )}
     </aside>
   );

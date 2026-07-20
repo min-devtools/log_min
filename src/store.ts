@@ -78,6 +78,7 @@ interface AppState {
 
   theme: string;
   compact: boolean;
+  vimKeys: boolean;
   /** app-wide UI font size in px (1rem base) */
   uiFontSize: number;
   /** UI font family ("" = design default) */
@@ -139,6 +140,7 @@ interface AppState {
   setTheme: (id: string) => void;
   toggleTheme: () => void;
   toggleCompact: () => void;
+  toggleVimKeys: () => void;
   setUiFontSize: (size: number) => void;
   setUiFont: (font: string) => void;
   setEditorFont: (font: string) => void;
@@ -184,6 +186,7 @@ export const useApp = create<AppState>((set, get) => ({
     return stored && isThemeId(stored) ? stored : "default-dark";
   })(),
   compact: localStorage.getItem("log:compact") === "1",
+  vimKeys: localStorage.getItem("log:vim-keys") === "1",
   uiFontSize: clampFontSize(Number(localStorage.getItem("log:ui-font-size")) || DEFAULT_FONT_SIZE),
   uiFont: localStorage.getItem("log:ui-font") ?? "",
   editorFont: localStorage.getItem("log:editor-font") ?? "",
@@ -474,6 +477,11 @@ export const useApp = create<AppState>((set, get) => ({
     set((s) => {
       localStorage.setItem("log:compact", s.compact ? "0" : "1");
       return { compact: !s.compact };
+    }),
+  toggleVimKeys: () =>
+    set((s) => {
+      localStorage.setItem("log:vim-keys", s.vimKeys ? "0" : "1");
+      return { vimKeys: !s.vimKeys };
     }),
   setUiFontSize: (size) => {
     const clamped = clampFontSize(size || DEFAULT_FONT_SIZE);

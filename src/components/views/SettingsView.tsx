@@ -11,10 +11,11 @@ import { EDITOR_LABELS, loadEditorApp, saveEditorApp, type EditorApp } from "../
 export function SettingsView({ active }: { active: boolean }) {
   const theme = useApp((s) => s.theme);
   const compact = useApp((s) => s.compact);
+  const vimKeys = useApp((s) => s.vimKeys);
   const uiFontSize = useApp((s) => s.uiFontSize);
   const uiFont = useApp((s) => s.uiFont);
   const editorFont = useApp((s) => s.editorFont);
-  const { setTheme, toggleCompact, setUiFontSize, setUiFont, setEditorFont } = useApp.getState();
+  const { setTheme, toggleCompact, toggleVimKeys, setUiFontSize, setUiFont, setEditorFont } = useApp.getState();
   const fontList = useFonts();
   const [editorApp, setEditorApp] = useState<EditorApp>(loadEditorApp);
 
@@ -58,6 +59,11 @@ export function SettingsView({ active }: { active: boolean }) {
             <span className="settings-icon"><Icon name="rows" size={15} /></span>
             <div className="settings-copy"><strong>Compact density</strong><span>Tighter table rows and narrower side panels.</span></div>
             <div className="settings-control"><label className="switch"><input type="checkbox" checked={compact} onChange={toggleCompact} /><span /></label></div>
+          </div>
+          <div className="settings-row">
+            <span className="settings-icon"><Icon name="keyboard" size={15} /></span>
+            <div className="settings-copy"><strong>Vim keys</strong><span>Use Ctrl-N and Ctrl-P to navigate command palette results.</span></div>
+            <div className="settings-control"><label className="switch"><input type="checkbox" checked={vimKeys} onChange={toggleVimKeys} /><span /></label></div>
           </div>
           <div className="settings-row">
             <span className="settings-icon"><Icon name="code" size={15} /></span>
