@@ -23,12 +23,13 @@ export function MiniTabs({
         <button
           key={t.id}
           type="button"
-          className={`${t.id === active ? "active" : ""} ${t.icon ? "icon-only" : ""}`}
+          className={`${t.id === active ? "active" : ""}`}
           title={t.title ?? t.label}
           aria-label={t.label}
           onClick={() => onChange(t.id)}
         >
-          {t.icon ? <Icon name={t.icon} size={13} /> : t.label}
+          {t.icon && <Icon name={t.icon} size={13} />}
+          {t.label}
         </button>
       ))}
     </div>
