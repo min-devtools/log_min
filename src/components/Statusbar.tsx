@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useShallow } from "zustand/react/shallow";
 import { runtimeOf, useApp } from "../store";
+import { UpdateBadge } from "../lib/updateCheck";
 
 function fmtInt(n: number): string {
   return n.toLocaleString("en-US").replace(/,/g, " ");
@@ -75,6 +76,7 @@ export function Statusbar() {
         <span>UTF-8</span>
         <span>{activeTab?.title ?? ""}</span>
         <span>v{__APP_VERSION__}</span>
+        <UpdateBadge repo="min-devtools/log_min" />
         <span
           className="credit"
           style={{ cursor: "pointer" }}
