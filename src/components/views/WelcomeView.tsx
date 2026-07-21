@@ -7,8 +7,8 @@ export function WelcomeView({ active }: { active: boolean }) {
   const { openTab, editSource, setCommandOpen } = useApp.getState();
 
   const actions: { icon: IconName; label: string; desc: string; onClick: () => void }[] = [
-    { icon: "docs", label: "Tail a file", desc: "Rotation-aware tail of any log file.", onClick: () => editSource(null, { kind: "file" }) },
     { icon: "terminal", label: "Run a command", desc: "npm run dev, mvn… with ▶/⏹/⟳ and kill-tree.", onClick: () => editSource(null, { kind: "cmd" }) },
+    { icon: "docs", label: "Tail a file", desc: "Rotation-aware tail of any log file.", onClick: () => editSource(null, { kind: "file" }) },
     { icon: "globe", label: "SSH tail a server", desc: "ssh user@host tail -F, managed like any command.", onClick: () => editSource(null, { kind: "cmd", command: "ssh user@host tail -F /var/log/app.log" }) },
     { icon: "search", label: "Stream over HTTP", desc: "Poll a remote .log URL — only new lines transfer.", onClick: () => editSource(null, { kind: "http" }) },
     { icon: "zap", label: "Stack traces", desc: "Node/TS traces detected — click a frame to open your editor.", onClick: () => {} },

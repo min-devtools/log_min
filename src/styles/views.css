@@ -1190,7 +1190,7 @@ body.light .docs-preview-editor { color: var(--editor-fg); }
 
 .log-stdin {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
   padding: 5px 10px;
   border-top: 1px solid var(--border-default);
@@ -1199,14 +1199,18 @@ body.light .docs-preview-editor { color: var(--editor-fg); }
   flex: none;
 }
 
-.log-stdin input {
+.log-stdin > svg { margin-top: 3px; }
+
+.log-stdin textarea {
   flex: 1;
   background: none;
   border: none;
   outline: none;
+  resize: none;
   color: var(--text-primary);
   font-family: var(--font-mono);
   font-size: 0.8462rem;
+  line-height: 1.5;
 }
 
 /* ── error inspector ─────────────────────────────────────────────────── */

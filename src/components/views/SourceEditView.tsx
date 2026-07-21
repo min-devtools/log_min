@@ -11,8 +11,8 @@ import type { SourceDef, SourceKind } from "../../lib/types";
 type FormKind = SourceKind | "docker";
 
 const TYPES: { id: FormKind; icon: IconName; title: string; desc: string }[] = [
-  { id: "file", icon: "docs", title: "File", desc: "Tail a local log file. Follows rotation and truncation." },
   { id: "cmd", icon: "terminal", title: "Command", desc: "Run a process via your login shell and capture its output." },
+  { id: "file", icon: "docs", title: "File", desc: "Tail a local log file. Follows rotation and truncation." },
   { id: "http", icon: "globe", title: "HTTP", desc: "Poll a remote log with Range requests — only new bytes transfer." },
   { id: "docker", icon: "topics", title: "Docker", desc: "Pick a running container and stream docker logs -f." },
 ];
@@ -44,7 +44,7 @@ export function SourceEditView({ active }: { active: boolean }) {
   const { saveSource, openSourceTab, closeTab, startSource, showToast } = useApp.getState();
   const existing = editingSourceId ? sources.find((x) => x.id === editingSourceId) : undefined;
 
-  const [kind, setKind] = useState<FormKind>(existing?.kind ?? (sourceDraft?.kind as SourceKind) ?? "file");
+  const [kind, setKind] = useState<FormKind>(existing?.kind ?? (sourceDraft?.kind as SourceKind) ?? "cmd");
   const [name, setName] = useState(existing?.name ?? sourceDraft?.name ?? "");
   const [path, setPath] = useState(existing?.path ?? sourceDraft?.path ?? "");
   const [command, setCommand] = useState(existing?.command ?? sourceDraft?.command ?? "");
@@ -58,7 +58,7 @@ export function SourceEditView({ active }: { active: boolean }) {
 
   // re-seed the form when switching between edit targets
   useEffect(() => {
-    setKind(existing?.kind ?? (sourceDraft?.kind as SourceKind) ?? "file");
+    setKind(existing?.kind ?? (sourceDraft?.kind as SourceKind) ?? "cmd");
     setName(existing?.name ?? sourceDraft?.name ?? "");
     setPath(existing?.path ?? sourceDraft?.path ?? "");
     setCommand(existing?.command ?? sourceDraft?.command ?? "");

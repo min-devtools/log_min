@@ -400,7 +400,9 @@ fn spawn_command_process(
     env: Option<&HashMap<String, String>>,
 ) -> Result<tokio::process::Child, String> {
     let mut cmd = tokio::process::Command::new(shell);
-    cmd.args(["-lc", command])
+    // -i so the user's rc file (aliases, functions, nvm) loads — login alone (-l)
+    // skips .zshrc/.bashrc and "works in my terminal" commands break
+    cmd.args(["-ilc", command])
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())

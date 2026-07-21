@@ -117,7 +117,8 @@ interface AppState {
   /** move a source into a collection (undefined = root), inserted before beforeId (null = end) */
   moveSource: (id: string, collectionId: string | undefined, beforeId: string | null) => void;
   deleteSource: (id: string) => Promise<void>;
-  startSource: (id: string) => Promise<void>;
+  /** commandOverride: run a one-off command in this source's view (same cwd/env) instead of the saved one */
+  startSource: (id: string, commandOverride?: string) => Promise<void>;
   stopSource: (id: string) => Promise<void>;
   sendStdin: (id: string, line: string) => Promise<void>;
   /** open the source-edit tab for an existing source (id) or a new draft (null, optional prefill) */
@@ -285,11 +286,11 @@ export const useApp = create<AppState>((set, get) => ({
     });
   },
 
-  startSource: async (id) => {
+  startSource: async (id, commandOverride) => {
     const def = get().sources.find((x) => x.id === id);
     if (!def) return;
     try {
-      await api.sourceStart(def);
+      await api.sourceStart(commandOverride ? { ...def, kind: "cmd", command: commandOverride } : def);
     } catch (err) {
       set((s) => ({
         runtimes: { ...s.runtimes, [id]: { ...runtimeOf(s, id), status: "error", error: String(err) } },

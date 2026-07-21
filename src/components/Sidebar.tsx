@@ -334,14 +334,22 @@ export function Sidebar() {
                 }}
                 onDrop={(e) => onDropOnCollection(e, c.id)}
               >
-                <button
-                  type="button"
+                {/* div, not <button>: WebKit refuses to start HTML5 drags from form controls */}
+                <div
+                  role="button"
+                  tabIndex={0}
                   className={`nav-item collection-node with-conn-dot ${dropIndicator === `col:${c.id}` ? "drop-prefix" : ""}`}
                   draggable
                   aria-expanded={!isCollapsed}
                   onDragStart={(e) => startDrag(e, { kind: "collection", id: c.id })}
                   onDragEnd={endDrag}
                   onClick={() => toggleCollection(c.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      toggleCollection(c.id);
+                    }
+                  }}
                   onContextMenu={(e) => {
                     e.preventDefault();
                     setColMenu({ x: e.clientX, y: e.clientY, id: c.id });
@@ -355,7 +363,7 @@ export function Sidebar() {
                   />
                   <span>{c.name}</span>
                   <Badge>{members.length || ""}</Badge>
-                </button>
+                </div>
                 <div className="collection-requests">
                   {shown.map(sourceRow)}
                   {members.length === 0 && <div className="empty-note collection-empty">Drag sources here.</div>}

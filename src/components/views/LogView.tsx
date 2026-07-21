@@ -199,12 +199,11 @@ export function LogView({ sourceId, active }: Props) {
     setRange((r) => (r[0] === first && r[1] === last ? r : [first, last]));
   }, [viewLen, rowH, wrap]);
 
-  // restore scroll position when returning to a tab that was hidden via display:none
+  // restore scroll position when returning to a tab that was hidden via display:none.
+  // no save on !active: this effect runs after the tab is already display:none, where
+  // scrollTop reads 0 — onScroll keeps savedScrollTop current while the tab is visible
   useEffect(() => {
-    if (!active) {
-      savedScrollTop.current = scrollRef.current?.scrollTop ?? 0;
-      return;
-    }
+    if (!active) return;
     const el = scrollRef.current;
     if (!el || followRef.current) return;
     // give the wrapped virtualizer one frame to remeasure before restoring
@@ -942,17 +941,25 @@ export function LogView({ sourceId, active }: Props) {
         )}
       </div>
 
-      {isCmd && live && (
+      {isCmd && (
         <div className="log-stdin">
           <Icon name="terminal" size={13} />
-          <input
+          <textarea
+            rows={3}
             value={stdinValue}
-            placeholder="Send a line to stdin (↵) — for y/N prompts, not a terminal"
+            placeholder={
+              live
+                ? "Send to stdin (↵, ⇧↵ newline) — for y/N prompts, not a terminal"
+                : "Run a command via your shell (↵, ⇧↵ newline) — output streams here"
+            }
             spellCheck={false}
             onChange={(e) => setStdinValue(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter" && stdinValue.length) {
-                void sendStdin(sourceId, stdinValue);
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                if (!stdinValue.length) return;
+                if (live) void sendStdin(sourceId, stdinValue);
+                else void startSource(sourceId, stdinValue);
                 setStdinValue("");
               }
             }}
