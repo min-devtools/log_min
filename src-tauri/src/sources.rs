@@ -267,16 +267,38 @@ fn tail_poll(path: &str, st: &mut TailState, first_attach: bool) -> std::io::Res
         // first open or rotation (new inode) — rotation reads from 0
         let mut f = std::fs::File::open(path)?;
         let start = if st.file.is_none() && first_attach && size > FIRST_ATTACH_TAIL_BYTES {
-            st.skip_torn = true;
             size - FIRST_ATTACH_TAIL_BYTES
         } else {
             0
         };
         f.seek(SeekFrom::Start(start))?;
+        // if the first attach lands mid-line, walk back to the previous newline
+        // so the last (possibly very long) line is not discarded as "torn".
+        let mut start = start;
+        if st.file.is_none() && first_attach && start > 0 {
+            let mut pos = start as i64;
+            let mut byte = [0u8; 1];
+            while pos > 0 {
+                pos -= 1;
+                f.seek(SeekFrom::Start(pos as u64))?;
+                if f.read(&mut byte).unwrap_or(0) == 0 {
+                    break;
+                }
+                if byte[0] == b'\n' {
+                    start = (pos + 1) as u64;
+                    break;
+                }
+            }
+            if pos == 0 {
+                start = 0;
+            }
+            f.seek(SeekFrom::Start(start))?;
+        }
         st.file = Some(f);
         st.ino = ino;
         st.offset = start;
         st.partial.clear();
+        st.skip_torn = false;
     } else if size < st.offset {
         // truncated in place
         st.file.as_mut().unwrap().seek(SeekFrom::Start(0))?;
@@ -720,6 +742,28 @@ mod tests {
             .unwrap();
         f.write_all(b"tial\nthree\n").unwrap();
         assert_eq!(poll_all(p, &mut st), vec!["partial", "three"]);
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn tail_first_attach_keeps_long_final_line() {
+        // regression: a final line longer than FIRST_ATTACH_TAIL_BYTES must not
+        // be silently discarded because the 64 KB tail lands mid-line.
+        let dir = std::env::temp_dir().join(format!("logmin-test-long-{}-end", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("long.log");
+        let p = path.to_str().unwrap();
+
+        let prefix = "header line\n";
+        let long = "x".repeat(FIRST_ATTACH_TAIL_BYTES as usize + 1_000);
+        std::fs::write(&path, format!("{}{}\n", prefix, long)).unwrap();
+
+        let mut st = fresh();
+        let lines = tail_poll(p, &mut st, true).unwrap();
+        assert_eq!(lines.len(), 1);
+        assert_eq!(lines[0].len(), long.len());
+        assert!(lines[0].chars().all(|c| c == 'x'));
+
         std::fs::remove_dir_all(&dir).unwrap();
     }
 

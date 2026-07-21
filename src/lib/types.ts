@@ -16,6 +16,8 @@ export interface SourceDef {
   id: string;
   name: string;
   kind: SourceKind;
+  /** transient sources are not persisted and are removed when their tab closes */
+  transient?: boolean;
   /** sidebar collection membership; undefined = root level */
   collectionId?: string;
   /** file: absolute path to tail */
@@ -130,6 +132,8 @@ export interface TabDef {
   iconClass: string;
   /** kind === "source" | "error-trace" */
   sourceId?: string;
+  /** kind === "source": true for transient sources that should not be restored */
+  transient?: boolean;
   /** kind === "error-trace": the ErrorGroup this tab traces */
   fingerprint?: string;
 }

@@ -1161,6 +1161,27 @@ body.light .docs-preview-editor { color: var(--editor-fg); }
 .log-line:hover .log-copy { visibility: visible; }
 .log-copy:focus-visible { visibility: visible; outline: 2px solid var(--accent-secondary); outline-offset: 1px; }
 
+.log-line.collapsed .log-raw {
+  cursor: pointer;
+  opacity: 0.75;
+}
+
+.log-line.collapsed .log-raw:hover {
+  opacity: 1;
+}
+
+.collapse-badge {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 8px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: color-mix(in oklab, var(--text-3), transparent 80%);
+  color: var(--text-3);
+  font: 0.75rem/1 var(--font-mono);
+  user-select: none;
+}
+
 /* second sticky button on json lines — offset so it never overlaps the copy button */
 .log-copy.log-json { right: 30px; }
 
@@ -1608,7 +1629,59 @@ body.light .docs-preview-editor { color: var(--editor-fg); }
 .json-tree-punc { color: var(--text-muted); }
 .json-tree-ellipsis { padding: 0 3px; color: var(--text-muted); }
 .json-tree-summary { padding-left: 8px; color: var(--text-muted); font-size: 0.7692rem; font-style: italic; }
+.json-tree-view mark {
+  background: color-mix(in oklab, var(--orange), transparent 60%);
+  color: var(--text-primary);
+  border-radius: 2px;
+}
 .json-dock-empty { min-height: 0; }
+
+.json-tree-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+  border-bottom: 1px solid var(--border-default);
+  background: var(--surface-panel);
+  color: var(--text-muted);
+  flex: none;
+}
+.json-tree-search input {
+  flex: 1;
+  background: none;
+  border: none;
+  outline: none;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 0.8462rem;
+}
+.json-tree-search .case-toggle {
+  width: 24px;
+  height: 20px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.7692rem;
+  font-weight: 600;
+  cursor: default;
+}
+.json-tree-search .case-toggle:hover { color: var(--text-primary); background: var(--surface-hover); }
+.json-tree-search .case-toggle.active {
+  color: var(--text-primary);
+  border-color: var(--border-default);
+  background: var(--surface-raised);
+}
+.json-tree-search .match-count {
+  font-family: var(--font-mono);
+  font-size: 0.7692rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
 
 /* ── integrated right dock: Overview / Inspect panels ─────────────────── */
 

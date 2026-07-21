@@ -21,6 +21,11 @@ import { sourceIcon } from "../../lib/types";
 import type { LogLevel, LogLine } from "../../lib/types";
 
 const OVERSCAN = 20;
+const COLLAPSE_LEN = 1200;
+const PREVIEW_LEN = 200;
+
+const isJsonLike = (raw: string) => /^\s*[\[{]/.test(raw);
+const previewText = (raw: string) => raw.slice(0, Math.min(raw.length, PREVIEW_LEN)) + "…";
 
 /** row height in px, derived from the app font size (mono line + padding) */
 function useRowHeight(): number {
@@ -97,7 +102,13 @@ export function LogView({ sourceId, active }: Props) {
   const [flashSeq, setFlashSeq] = useState<number | null>(null);
   const [stdinValue, setStdinValue] = useState("");
   const [capValue, setCapValue] = useState("");
+  const [expandedSeqs, setExpandedSeqs] = useState<Set<number>>(new Set());
   const searchInputRef = useRef<HTMLInputElement>(null);
+  /** scroll position preserved when the tab is hidden via display:none */
+  const savedScrollTop = useRef(0);
+
+  const isCollapsed = (l: LogLine) =>
+    l.raw.length > COLLAPSE_LEN && isJsonLike(l.raw) && !expandedSeqs.has(l.seq);
 
   // per-source retained-line budget — applied to the ring on mount, persisted on commit
   useEffect(() => {
@@ -188,6 +199,27 @@ export function LogView({ sourceId, active }: Props) {
     setRange((r) => (r[0] === first && r[1] === last ? r : [first, last]));
   }, [viewLen, rowH, wrap]);
 
+  // restore scroll position when returning to a tab that was hidden via display:none
+  useEffect(() => {
+    if (!active) {
+      savedScrollTop.current = scrollRef.current?.scrollTop ?? 0;
+      return;
+    }
+    const el = scrollRef.current;
+    if (!el || followRef.current) return;
+    // give the wrapped virtualizer one frame to remeasure before restoring
+    const raf = requestAnimationFrame(() => {
+      if (followRef.current) return;
+      if (wrap) {
+        wrappedVirtualizer.scrollToOffset(savedScrollTop.current, { align: "start" });
+      } else {
+        el.scrollTop = savedScrollTop.current;
+      }
+      computeRange();
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [active, computeRange, wrap, wrappedVirtualizer]);
+
   // new batch: stick to bottom when following, always refresh the window
   useEffect(() => {
     const el = scrollRef.current;
@@ -203,6 +235,7 @@ export function LogView({ sourceId, active }: Props) {
     const el = scrollRef.current;
     if (!el) return;
     const top = el.scrollTop;
+    savedScrollTop.current = top;
     const scrolledUp = top < lastTopRef.current - 1;
     lastTopRef.current = top;
     const atBottom = top + el.clientHeight >= el.scrollHeight - rowH;
@@ -318,6 +351,25 @@ export function LogView({ sourceId, active }: Props) {
     return () => window.clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query, searchOpen, caseSensitive, regexMode, filterMode]);
+
+  // auto-expand long JSON lines that are search matches so highlights are visible
+  useEffect(() => {
+    if (!matches.length) return;
+    setExpandedSeqs((prev) => {
+      const next = new Set(prev);
+      let changed = false;
+      for (const seq of matches) {
+        if (!next.has(seq)) {
+          const line = ring.at(ring.indexOfSeq(seq));
+          if (line && line.raw.length > COLLAPSE_LEN && isJsonLike(line.raw)) {
+            next.add(seq);
+            changed = true;
+          }
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [matches, ring]);
 
   // error dock clicked a group — scroll to the line and flash it
   const jumpTarget = useApp((s) => s.jumpTarget);
@@ -552,6 +604,18 @@ export function LogView({ sourceId, active }: Props) {
   ) => {
     const selected = !!picks?.has(l.seq);
     const isMatch = testLine(l.raw);
+    const collapsed = isCollapsed(l);
+    const displayText = collapsed ? previewText(l.raw) : l.raw;
+    const toggleExpanded = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      setExpandedSeqs((prev) => {
+        const next = new Set(prev);
+        if (next.has(l.seq)) next.delete(l.seq);
+        else next.add(l.seq);
+        return next;
+      });
+      if (wrap) requestAnimationFrame(() => wrappedVirtualizer.measure());
+    };
     return (
       <div
         key={l.seq}
@@ -565,11 +629,19 @@ export function LogView({ sourceId, active }: Props) {
           isMatch ? "match" : "",
           isMatch && l.seq === currentMatchSeq ? "current" : "",
           flashSeq === l.seq ? "flash" : "",
+          collapsed ? "collapsed" : "",
         ].filter(Boolean).join(" ")}
         style={style}
         onClick={(e) => onRowClick(l, e)}
       >
-        <span className="log-raw">{renderRaw(rawLogText(l.raw), !!isMatch, l.ansi)}</span>
+        {collapsed ? (
+          <span className="log-raw collapsed-preview" onClick={toggleExpanded}>
+            {renderRaw(rawLogText(displayText), !!isMatch, l.ansi)}
+            <span className="collapse-badge">{(l.raw.length / 1024).toFixed(1)} KB JSON</span>
+          </span>
+        ) : (
+          <span className="log-raw">{renderRaw(rawLogText(displayText), !!isMatch, l.ansi)}</span>
+        )}
         {(l.raw[0] === "{" || l.raw[0] === "[") && (
           <button
             type="button"

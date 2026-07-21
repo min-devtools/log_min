@@ -21,6 +21,8 @@ const TAB_META: Record<TabKind, { title: string; icon: TabDef["icon"]; iconClass
 const sourceTabId = (sourceId: string) => `src-${sourceId}`;
 
 export const newSourceId = () => `s${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`;
+
+const baseName = (p: string) => p.split("/").filter(Boolean).pop() ?? p;
 export const newCollectionId = () => `c${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`;
 const IDLE_RUNTIME: SourceRuntime = { status: "idle", lines: 0, errors: 0, dropped: 0 };
 
@@ -31,8 +33,10 @@ function loadSession(): { tabs: TabDef[]; activeTabId: string } | null {
     if (!raw) return null;
     const s = JSON.parse(raw);
     if (!Array.isArray(s.tabs) || s.tabs.length === 0) return null;
-    // error-trace tabs are not restored: their archive is RAM-only and empty after a relaunch
-    const tabs: TabDef[] = s.tabs.filter((t: TabDef) => TAB_META[t.kind] && t.kind !== "error-trace");
+    // error-trace tabs and transient source tabs are not restored after a relaunch
+    const tabs: TabDef[] = s.tabs.filter(
+      (t: TabDef) => TAB_META[t.kind] && t.kind !== "error-trace" && !t.transient,
+    );
     if (!tabs.length) return null;
     return {
       tabs,
@@ -131,6 +135,8 @@ interface AppState {
   openSourceTab: (sourceId: string) => void;
   /** open (or focus) the dedicated trace tab for an error group */
   openErrorTab: (sourceId: string, fingerprint: string, message: string) => void;
+  /** open file(s) as transient sources without persisting them */
+  openTransientFiles: (paths: string[]) => void;
   closeTab: (id: string) => void;
   activateTab: (id: string) => void;
   reorderTab: (id: string, beforeId: string | null) => void;
@@ -412,6 +418,16 @@ export const useApp = create<AppState>((set, get) => ({
     });
   },
 
+  openTransientFiles: (paths) => {
+    for (const p of paths) {
+      const id = newSourceId();
+      const def: SourceDef = { id, name: baseName(p), kind: "file", path: p, transient: true };
+      get().saveSource(def);
+      get().openSourceTab(id);
+      void get().startSource(id);
+    }
+  },
+
   openSourceTab: (sourceId) => {
     const s = get();
     const id = sourceTabId(sourceId);
@@ -421,7 +437,15 @@ export const useApp = create<AppState>((set, get) => ({
     set({
       tabs: [
         ...s.tabs,
-        { id, kind: "source", title: def.name, icon: sourceIcon(def), iconClass: "soft-blue", sourceId },
+        {
+          id,
+          kind: "source",
+          title: def.name,
+          icon: sourceIcon(def),
+          iconClass: "soft-blue",
+          sourceId,
+          transient: def.transient,
+        },
       ],
       activeTabId: id,
     });
@@ -429,13 +453,22 @@ export const useApp = create<AppState>((set, get) => ({
 
   closeTab: (id) =>
     set((s) => {
-      const idx = s.tabs.findIndex((t) => t.id === id);
-      if (idx < 0) return s;
+      const tab = s.tabs.find((t) => t.id === id);
+      if (!tab) return s;
+      const transientId = tab.kind === "source" && tab.transient ? tab.sourceId : undefined;
+      const idx = s.tabs.indexOf(tab);
       const tabs = s.tabs.filter((t) => t.id !== id);
       let activeTabId = s.activeTabId;
       if (activeTabId === id) {
         const next = tabs[Math.min(idx, tabs.length - 1)];
         activeTabId = next?.id ?? "";
+      }
+      if (tabs.length === 0) {
+        activeTabId = "welcome";
+      }
+      // clean up transient sources immediately when their tab closes
+      if (transientId) {
+        setTimeout(() => get().deleteSource(transientId), 0);
       }
       if (tabs.length === 0) {
         return { tabs: [{ id: "welcome", kind: "welcome", ...TAB_META.welcome }], activeTabId: "welcome" };

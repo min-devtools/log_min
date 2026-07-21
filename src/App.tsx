@@ -1,4 +1,6 @@
 import { useEffect } from "react";
+import { listen } from "@tauri-apps/api/event";
+import { open } from "@tauri-apps/plugin-dialog";
 import { Titlebar } from "./components/Titlebar";
 import { Sidebar } from "./components/Sidebar";
 import { TabsBar } from "./components/TabsBar";
@@ -38,7 +40,7 @@ export default function App() {
   const compact = useApp((s) => s.compact);
   const leftCollapsed = useApp((s) => s.leftCollapsed);
   const rightCollapsed = useApp((s) => s.rightCollapsed);
-  const { toggleLeft, toggleRight, setCommandOpen, editSource } = useApp.getState();
+  const { toggleLeft, toggleRight, setCommandOpen, editSource, openTransientFiles } = useApp.getState();
 
   const inspectorOk = useApp((s) => inspectorAvailable(s));
   const uiFont = useApp((s) => s.uiFont);
@@ -74,6 +76,18 @@ export default function App() {
     cls.toggle("inspector-unavailable", !inspectorOk);
   }, [theme, compact, leftCollapsed, rightCollapsed, inspectorOk]);
 
+  // open dropped files as transient sources
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    void (async () => {
+      unlisten = await listen<{ paths: string[] }>("tauri://drag-drop", (e) => {
+        const paths = e.payload.paths;
+        if (paths?.length) openTransientFiles(paths);
+      });
+    })();
+    return () => unlisten?.();
+  }, [openTransientFiles]);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.defaultPrevented) return;
@@ -86,6 +100,15 @@ export default function App() {
       if (mod && key === "n") {
         e.preventDefault();
         editSource(null);
+      }
+      if (mod && key === "o") {
+        e.preventDefault();
+        void (async () => {
+          const picked = await open({ multiple: true, title: "Open log file(s)" });
+          if (!picked) return;
+          const paths = Array.isArray(picked) ? picked : [picked];
+          openTransientFiles(paths);
+        })();
       }
       if (mod && e.key === "Enter") {
         e.preventDefault();

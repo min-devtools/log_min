@@ -235,7 +235,9 @@ export function Sidebar() {
     );
   };
 
-  const rootSources = sources.filter((s) => !s.collectionId || !collections.some((c) => c.id === s.collectionId));
+  const rootSources = sources.filter(
+    (s) => !s.transient && (!s.collectionId || !collections.some((c) => c.id === s.collectionId)),
+  );
 
   const menuSource = menu ? sources.find((s) => s.id === menu.id) : undefined;
   const menuItems: ContextMenuItem[] = menuSource
@@ -311,7 +313,7 @@ export function Sidebar() {
           </div>
 
           {collections.map((c) => {
-            const members = sources.filter((s) => s.collectionId === c.id);
+            const members = sources.filter((s) => s.collectionId === c.id && !s.transient);
             const shown = members.filter((s) => matches(s) || c.name.toLowerCase().includes(q));
             if (q && shown.length === 0 && !c.name.toLowerCase().includes(q)) return null;
             const isCollapsed = !q && collapsed.has(c.id);

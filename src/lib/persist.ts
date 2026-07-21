@@ -18,7 +18,7 @@ export async function initPersistence(): Promise<void> {
 
   let prev = useApp.getState();
   useApp.subscribe((s) => {
-    if (store && s.sources !== prev.sources) void store.set("sources", s.sources);
+    if (store && s.sources !== prev.sources) void store.set("sources", s.sources.filter((x) => !x.transient));
     if (store && s.collections !== prev.collections) void store.set("collections", s.collections);
     // session restore: open tabs (log lines are not persisted)
     if (s.tabs !== prev.tabs || s.activeTabId !== prev.activeTabId) {
