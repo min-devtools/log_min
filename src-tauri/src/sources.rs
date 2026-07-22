@@ -393,6 +393,35 @@ pub fn start_file(app: AppHandle, manager: &SourceManager, id: String, path: Str
 
 // ─── command runner ───────────────────────────────────────────────────────
 
+/// Env captured once from an interactive login shell so commands see the
+/// user's real PATH (nvm, homebrew, …). Running every command with `-il`
+/// instead pollutes the log: interactive rc files without a TTY spew errors
+/// (p10k "setopt monitor", gitstatus init failure) straight into stderr.
+fn login_shell_env(shell: &str) -> HashMap<String, String> {
+    static ENV: std::sync::OnceLock<HashMap<String, String>> = std::sync::OnceLock::new();
+    ENV.get_or_init(|| {
+        std::process::Command::new(shell)
+            .args(["-ilc", "command env -0"])
+            .stdin(std::process::Stdio::null())
+            .output()
+            .map(|o| parse_env0(&o.stdout))
+            .unwrap_or_default()
+    })
+    .clone()
+}
+
+/// Parse NUL-separated KEY=VALUE pairs (`env -0` output).
+fn parse_env0(bytes: &[u8]) -> HashMap<String, String> {
+    bytes
+        .split(|b| *b == 0)
+        .filter_map(|kv| {
+            let s = String::from_utf8_lossy(kv);
+            let (k, v) = s.split_once('=')?;
+            Some((k.to_string(), v.to_string()))
+        })
+        .collect()
+}
+
 fn spawn_command_process(
     shell: &str,
     command: &str,
@@ -400,9 +429,9 @@ fn spawn_command_process(
     env: Option<&HashMap<String, String>>,
 ) -> Result<tokio::process::Child, String> {
     let mut cmd = tokio::process::Command::new(shell);
-    // -i so the user's rc file (aliases, functions, nvm) loads — login alone (-l)
-    // skips .zshrc/.bashrc and "works in my terminal" commands break
-    cmd.args(["-ilc", command])
+    // plain -c: rc files never run per command, so their noise can't leak into
+    // the log — the snapshot below still carries the rc-file PATH
+    cmd.args(["-c", command])
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
@@ -410,8 +439,9 @@ fn spawn_command_process(
     if let Some(cwd) = cwd {
         cmd.current_dir(cwd);
     }
+    cmd.envs(login_shell_env(shell));
     if let Some(env) = env {
-        cmd.envs(env);
+        cmd.envs(env); // per-source env wins over the snapshot
     }
     cmd.spawn().map_err(|e| format!("spawn failed: {e}"))
 }
@@ -791,6 +821,14 @@ mod tests {
         st.file = None; // reader loop clears the handle on error, mirror that
         assert_eq!(poll_all(p, &mut st), vec!["fresh"]);
         std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn parse_env0_splits_nul_pairs_and_keeps_multiline_values() {
+        let env = parse_env0(b"PATH=/a:/b\0MULTI=line1\nline2\0BROKEN\0");
+        assert_eq!(env.get("PATH").map(String::as_str), Some("/a:/b"));
+        assert_eq!(env.get("MULTI").map(String::as_str), Some("line1\nline2"));
+        assert!(!env.contains_key("BROKEN"));
     }
 
     #[tokio::test]

@@ -37,6 +37,43 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "fileAssociations": [
+      {
+        "ext": ["log", "txt", "text", "out", "err", "trace"],
+        "name": "Log and text files",
+        "contentTypes": ["public.plain-text"],
+        "role": "Viewer",
+        "rank": "Alternate"
+      },
+      {
+        "ext": ["json", "jsonl", "ndjson"],
+        "name": "JSON log files",
+        "contentTypes": ["public.json"],
+        "role": "Viewer",
+        "rank": "Alternate"
+      },
+      {
+        "ext": ["csv", "tsv"],
+        "name": "Delimited text files",
+        "contentTypes": ["public.comma-separated-values-text", "public.tab-separated-values-text"],
+        "role": "Viewer",
+        "rank": "Alternate"
+      },
+      {
+        "ext": ["yaml", "yml", "xml", "conf", "config", "ini", "env", "properties"],
+        "name": "Configuration text files",
+        "contentTypes": ["public.plain-text", "public.xml"],
+        "role": "Viewer",
+        "rank": "Alternate"
+      },
+      {
+        "ext": ["md", "markdown"],
+        "name": "Markdown files",
+        "contentTypes": ["net.daringfireball.markdown", "public.plain-text"],
+        "role": "Viewer",
+        "rank": "Alternate"
+      }
+    ],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

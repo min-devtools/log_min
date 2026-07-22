@@ -2,7 +2,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
 import { initPersistence } from "./lib/persist";
-import { initLogEvents } from "./lib/logmin";
+import { initLogEvents, initOpenedFileEvents } from "./lib/logmin";
 import "./styles/tokens.css";
 import "./styles/themes.css";
 import "./styles/base.css";
@@ -10,9 +10,14 @@ import "./styles/layout.css";
 import "./styles/components.css";
 import "./styles/views.css";
 
-void initPersistence().catch((err) => console.error("persistence init failed", err));
-// if the event bridge fails to attach, ingestion never starts — surface it instead of looking alive-but-dead
-void initLogEvents().catch((err) => console.error("log event bridge failed", err));
+async function initRuntime(): Promise<void> {
+  // Open-With files must land after persisted sources are restored, otherwise
+  // the store load could overwrite the new transient source.
+  await initPersistence();
+  await Promise.all([initLogEvents(), initOpenedFileEvents()]);
+}
+
+void initRuntime().catch((err) => console.error("runtime init failed", err));
 
 class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { error: Error | null }> {
   state = { error: null as Error | null };

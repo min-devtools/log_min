@@ -2005,3 +2005,9 @@ body.light .docs-preview-editor { color: var(--editor-fg); }
   background: color-mix(in oklab, var(--accent-primary), transparent 86%);
   box-shadow: inset 2px 0 0 var(--accent-primary);
 }
+.root-sources.drop-target {
+  outline: 1px dashed var(--accent, #6ea8fe);
+  outline-offset: -1px;
+  background: color-mix(in srgb, var(--accent, #6ea8fe) 12%, transparent);
+  border-radius: 6px;
+}

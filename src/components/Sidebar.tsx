@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { Badge } from "../ui/Badge";
 import { ContextMenu, type ContextMenuItem } from "../ui/ContextMenu";
@@ -8,6 +8,7 @@ import { ColorPicker } from "../ui/ColorPicker";
 import { sourceIcon } from "../lib/types";
 import type { CollectionDef, SourceDef, SourceStatus, TabKind } from "../lib/types";
 import { Icon, type IconName } from "../ui/Icon";
+import { collectionDropTarget } from "../lib/collectionDrop";
 
 const WORKSPACE_NAV: { kind: TabKind; icon: IconName; iconClass: string; label: string; meta?: string }[] = [
   { kind: "welcome", icon: "sparkles", iconClass: "soft-blue", label: "Welcome" },
@@ -17,7 +18,9 @@ const WORKSPACE_NAV: { kind: TabKind; icon: IconName; iconClass: string; label: 
 const statusTone = (status: string): "green" | "red" | "idle" =>
   status === "live" ? "green" : status === "error" ? "red" : "idle";
 
-type DragItem = { kind: "collection"; id: string } | { kind: "source"; id: string };
+type DragItem =
+  | { kind: "collection"; id: string }
+  | { kind: "source"; id: string; collectionId?: string };
 
 const COLLAPSED_KEY = "log:collapsed-collections";
 
@@ -33,6 +36,15 @@ export function Sidebar() {
   const [dragging, setDragging] = useState<DragItem | null>(null);
   const [dragOverCollection, setDragOverCollection] = useState<string | null>(null);
   const [dropIndicator, setDropIndicator] = useState<string | null>(null);
+  const [dragOverRoot, setDragOverRoot] = useState(false);
+  const pointerDrag = useRef<{
+    pointerId: number;
+    startX: number;
+    startY: number;
+    item: DragItem;
+    active: boolean;
+  } | null>(null);
+  const suppressClick = useRef(false);
   const sources = useApp((s) => s.sources);
   const collections = useApp((s) => s.collections);
   const tabs = useApp((s) => s.tabs);
@@ -149,58 +161,117 @@ export function Sidebar() {
     });
   };
 
-  // ── drag & drop (HTML5, same scheme as requests_min) ─────────────────────
-  const startDrag = (event: React.DragEvent, item: DragItem) => {
-    setDragging(item);
-    event.stopPropagation();
-    event.dataTransfer.effectAllowed = "move";
-    event.dataTransfer.setData("application/json", JSON.stringify(item));
-  };
-  const endDrag = () => {
+  // Pointer-based reorder leaves Tauri's native drag channel free for OS files.
+  const clearDrag = () => {
+    pointerDrag.current = null;
     setDragging(null);
     setDropIndicator(null);
     setDragOverCollection(null);
-  };
-  const parseDrop = (event: React.DragEvent): DragItem | null => {
-    try { return JSON.parse(event.dataTransfer.getData("application/json")) as DragItem; }
-    catch { return null; }
-  };
-  /** id of the source right after `s` in the global array (insert-after target) */
-  const afterOf = (s: SourceDef): string | null =>
-    sources[sources.findIndex((x) => x.id === s.id) + 1]?.id ?? null;
-
-  const onDropOnSource = (event: React.DragEvent, target: SourceDef) => {
-    event.preventDefault();
-    event.stopPropagation();
-    setDropIndicator(null);
-    setDragOverCollection(null);
-    const item = parseDrop(event);
-    if (!item || item.kind !== "source" || item.id === target.id) return;
-    const before = event.clientY < event.currentTarget.getBoundingClientRect().top + (event.currentTarget as HTMLElement).offsetHeight / 2;
-    moveSource(item.id, target.collectionId, before ? target.id : afterOf(target));
+    setDragOverRoot(false);
   };
 
-  const onDropOnCollection = (event: React.DragEvent, collectionId: string) => {
-    event.preventDefault();
-    setDragOverCollection(null);
+  const beginPointerDrag = (event: React.PointerEvent<HTMLElement>, item: DragItem) => {
+    if (event.button !== 0) return;
+    pointerDrag.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      item,
+      active: false,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const afterSource = (source: SourceDef): string | null => {
+    const members = sources.filter((candidate) => candidate.collectionId === source.collectionId && !candidate.transient);
+    return members[members.findIndex((candidate) => candidate.id === source.id) + 1]?.id ?? null;
+  };
+
+  const dropElementAt = (x: number, y: number) =>
+    (document.elementFromPoint(x, y) as HTMLElement | null)?.closest<HTMLElement>("[data-drop-kind]") ?? null;
+
+  const showPointerTarget = (x: number, y: number, item: DragItem) => {
+    const element = dropElementAt(x, y);
     setDropIndicator(null);
-    const item = parseDrop(event);
-    if (!item) return;
+    setDragOverCollection(null);
+    setDragOverRoot(false);
+
+    if (!element) return;
+    const kind = element.dataset.dropKind;
+    const id = element.dataset.dropId;
     if (item.kind === "collection") {
-      const row = (event.target as HTMLElement).closest(".collection-node")?.getBoundingClientRect();
-      if (!row || event.clientY < row.top + row.height / 2) reorderCollection(item.id, collectionId);
-      else reorderCollection(item.id, collections[collections.findIndex((c) => c.id === collectionId) + 1]?.id ?? null);
+      if (kind !== "collection" || !id) return;
+      const target = collectionDropTarget(collections.map((collection) => collection.id), item.id, id);
+      if (target) setDropIndicator(`col:${id}:${target.edge}`);
       return;
     }
-    moveSource(item.id, collectionId, null);
+
+    if (kind === "source" && id) {
+      const target = sources.find((source) => source.id === id);
+      if (!target || target.id === item.id) return;
+      if (item.collectionId === target.collectionId) setDropIndicator(`src:${target.id}`);
+      else if (target.collectionId) setDragOverCollection(target.collectionId);
+      else setDragOverRoot(true);
+      return;
+    }
+    if (kind === "collection" && id) setDragOverCollection(id);
+    if (kind === "root") setDragOverRoot(true);
   };
 
-  const onDropOnRoot = (event: React.DragEvent) => {
+  const commitPointerDrop = (x: number, y: number, item: DragItem) => {
+    const element = dropElementAt(x, y);
+    const kind = element?.dataset.dropKind;
+    const id = element?.dataset.dropId;
+
+    if (item.kind === "collection") {
+      if (kind !== "collection" || !id) return;
+      const target = collectionDropTarget(collections.map((collection) => collection.id), item.id, id);
+      if (target) reorderCollection(item.id, target.beforeId);
+      return;
+    }
+    if (kind === "source" && id) {
+      const target = sources.find((source) => source.id === id);
+      if (!target || target.id === item.id) return;
+      if (item.collectionId !== target.collectionId) {
+        moveSource(item.id, target.collectionId, null);
+        return;
+      }
+      const rect = element!.getBoundingClientRect();
+      moveSource(item.id, target.collectionId, y < rect.top + rect.height / 2 ? target.id : afterSource(target));
+      return;
+    }
+    if (kind === "collection" && id && item.collectionId !== id) moveSource(item.id, id, null);
+    if (kind === "root" && item.collectionId) moveSource(item.id, undefined, null);
+  };
+
+  const movePointerDrag = (event: React.PointerEvent<HTMLElement>) => {
+    const pending = pointerDrag.current;
+    if (!pending || pending.pointerId !== event.pointerId) return;
+    if (!pending.active && Math.hypot(event.clientX - pending.startX, event.clientY - pending.startY) < 4) return;
+    if (!pending.active) {
+      pending.active = true;
+      setDragging(pending.item);
+    }
     event.preventDefault();
-    setDropIndicator(null);
-    setDragOverCollection(null);
-    const item = parseDrop(event);
-    if (item?.kind === "source") moveSource(item.id, undefined, null);
+    showPointerTarget(event.clientX, event.clientY, pending.item);
+  };
+
+  const finishPointerDrag = (event: React.PointerEvent<HTMLElement>) => {
+    const pending = pointerDrag.current;
+    if (!pending || pending.pointerId !== event.pointerId) return;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    if (pending.active) {
+      event.preventDefault();
+      event.stopPropagation();
+      commitPointerDrop(event.clientX, event.clientY, pending.item);
+      suppressClick.current = true;
+      setTimeout(() => { suppressClick.current = false; }, 0);
+    }
+    clearDrag();
+  };
+
+  const cancelPointerDrag = (event: React.PointerEvent<HTMLElement>) => {
+    if (pointerDrag.current?.pointerId === event.pointerId) clearDrag();
   };
 
   const sourceRow = (s: SourceDef) => {
@@ -208,19 +279,21 @@ export function Sidebar() {
     return (
       <div
         key={s.id}
-        className={`nav-item request-node ${activeTab?.sourceId === s.id ? "active" : ""} ${dropIndicator === `src:${s.id}` ? "drop-prefix" : ""}`}
+        className={`nav-item request-node ${activeTab?.sourceId === s.id ? "active" : ""} ${dropIndicator === `src:${s.id}` ? "drop-prefix" : ""} ${dragging?.kind === "source" && dragging.id === s.id ? "dragging" : ""}`}
         title={s.path ?? s.command}
-        draggable
-        onDragStart={(e) => startDrag(e, { kind: "source", id: s.id })}
-        onDragEnd={endDrag}
-        onDragOver={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          if (dragging?.kind === "source" && dragging.id !== s.id) setDropIndicator(`src:${s.id}`);
+        data-drop-kind="source"
+        data-drop-id={s.id}
+        onPointerDown={(event) => beginPointerDrag(event, { kind: "source", id: s.id, collectionId: s.collectionId })}
+        onPointerMove={movePointerDrag}
+        onPointerUp={finishPointerDrag}
+        onPointerCancel={cancelPointerDrag}
+        onClick={(event) => {
+          if (suppressClick.current) {
+            event.preventDefault();
+            return;
+          }
+          openSourceTab(s.id);
         }}
-        onDragLeave={() => setDropIndicator((d) => (d === `src:${s.id}` ? null : d))}
-        onDrop={(e) => onDropOnSource(e, s)}
-        onClick={() => openSourceTab(s.id)}
         onContextMenu={(e) => {
           e.preventDefault();
           setMenu({ x: e.clientX, y: e.clientY, id: s.id });
@@ -321,29 +394,22 @@ export function Sidebar() {
               <div
                 key={c.id}
                 className={`collection-tree ${isCollapsed ? "collapsed" : ""} ${dragOverCollection === c.id ? "drop-target" : ""}`}
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  if (dragging?.kind === "collection") setDropIndicator(`col:${c.id}`);
-                  else if (dragOverCollection !== c.id) setDragOverCollection(c.id);
-                }}
-                onDragLeave={(e) => {
-                  if (!e.currentTarget.contains(e.relatedTarget as Node)) {
-                    setDragOverCollection(null);
-                    setDropIndicator(null);
-                  }
-                }}
-                onDrop={(e) => onDropOnCollection(e, c.id)}
+                data-drop-kind="collection"
+                data-drop-id={c.id}
               >
-                {/* div, not <button>: WebKit refuses to start HTML5 drags from form controls */}
                 <div
                   role="button"
                   tabIndex={0}
-                  className={`nav-item collection-node with-conn-dot ${dropIndicator === `col:${c.id}` ? "drop-prefix" : ""}`}
-                  draggable
+                  className={`nav-item collection-node with-conn-dot ${dropIndicator === `col:${c.id}:before` ? "drop-before" : ""} ${dropIndicator === `col:${c.id}:after` ? "drop-after" : ""} ${dragging?.kind === "collection" && dragging.id === c.id ? "dragging" : ""}`}
                   aria-expanded={!isCollapsed}
-                  onDragStart={(e) => startDrag(e, { kind: "collection", id: c.id })}
-                  onDragEnd={endDrag}
-                  onClick={() => toggleCollection(c.id)}
+                  onPointerDown={(event) => beginPointerDrag(event, { kind: "collection", id: c.id })}
+                  onPointerMove={movePointerDrag}
+                  onPointerUp={finishPointerDrag}
+                  onPointerCancel={cancelPointerDrag}
+                  onClick={(event) => {
+                    if (!suppressClick.current) toggleCollection(c.id);
+                    else event.preventDefault();
+                  }}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" || e.key === " ") {
                       e.preventDefault();
@@ -373,11 +439,8 @@ export function Sidebar() {
           })}
 
           <div
-            className="root-sources"
-            onDragOver={(e) => {
-              if (dragging?.kind === "source") e.preventDefault();
-            }}
-            onDrop={onDropOnRoot}
+            className={`root-sources ${dragOverRoot ? "drop-target" : ""}`}
+            data-drop-kind="root"
           >
             {rootSources.filter(matches).map(sourceRow)}
           </div>

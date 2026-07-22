@@ -1,8 +1,44 @@
 mod editor;
 mod sources;
 
+use std::sync::Mutex;
 use sources::{SourceConfig, SourceManager};
-use tauri::{AppHandle, Manager, RunEvent, State};
+use tauri::{AppHandle, Emitter, Manager, RunEvent, State};
+
+const OPENED_FILES_READY: &str = "app:open-files-ready";
+
+#[derive(Default)]
+struct OpenedFiles(Mutex<Vec<String>>);
+
+impl OpenedFiles {
+    fn push(&self, paths: Vec<String>) {
+        self.0
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .extend(paths);
+    }
+
+    fn take(&self) -> Vec<String> {
+        std::mem::take(
+            &mut *self
+                .0
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner()),
+        )
+    }
+}
+
+fn local_paths(urls: Vec<tauri::Url>) -> Vec<String> {
+    urls.into_iter()
+        .filter_map(|url| url.to_file_path().ok())
+        .map(|path| path.to_string_lossy().into_owned())
+        .collect()
+}
+
+#[tauri::command]
+fn take_opened_files(files: State<'_, OpenedFiles>) -> Vec<String> {
+    files.take()
+}
 
 #[tauri::command]
 async fn source_start(
@@ -110,6 +146,7 @@ async fn docker_ps() -> Result<String, String> {
 pub fn run() {
     tauri::Builder::default()
         .manage(SourceManager::default())
+        .manage(OpenedFiles::default())
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .plugin(tauri_plugin_clipboard_manager::init())
@@ -122,7 +159,8 @@ pub fn run() {
             list_fonts,
             editor_open,
             save_text,
-            docker_ps
+            docker_ps,
+            take_opened_files
         ])
         .setup(|app| {
             // Custom menu without File > Close Window so ⌘W reaches the webview
@@ -176,10 +214,46 @@ pub fn run() {
         })
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
-        .run(|app, event| {
+        .run(|app, event| match event {
             // command sources own process groups — kill them all on app exit
-            if let RunEvent::Exit = event {
-                app.state::<SourceManager>().stop_all();
+            RunEvent::Exit => app.state::<SourceManager>().stop_all(),
+            #[cfg(target_os = "macos")]
+            RunEvent::Opened { urls } => {
+                let paths = local_paths(urls);
+                if paths.is_empty() {
+                    return;
+                }
+                app.state::<OpenedFiles>().push(paths);
+                let _ = app.emit(OPENED_FILES_READY, ());
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.show();
+                    let _ = window.set_focus();
+                }
             }
+            _ => {}
         });
+}
+
+#[cfg(test)]
+mod opened_file_tests {
+    use super::*;
+
+    #[test]
+    fn pending_opened_files_are_drained_exactly_once() {
+        let files = OpenedFiles::default();
+        files.push(vec!["/tmp/one.log".into(), "/tmp/two.jsonl".into()]);
+
+        assert_eq!(files.take(), vec!["/tmp/one.log", "/tmp/two.jsonl"]);
+        assert!(files.take().is_empty());
+    }
+
+    #[test]
+    fn opened_event_keeps_only_local_file_urls() {
+        let urls = vec![
+            tauri::Url::parse("file:///tmp/space%20name.log").unwrap(),
+            tauri::Url::parse("https://example.com/remote.log").unwrap(),
+        ];
+
+        assert_eq!(local_paths(urls), vec!["/tmp/space name.log"]);
+    }
 }

@@ -36,6 +36,10 @@ export function saveText(path: string, contents: string): Promise<void> {
   return invoke("save_text", { path, contents });
 }
 
+export function takeOpenedFiles(): Promise<string[]> {
+  return invoke<string[]>("take_opened_files");
+}
+
 export interface DockerContainer {
   id: string;
   name: string;
@@ -98,4 +102,19 @@ export async function initLogEvents(): Promise<void> {
   await listen<StatusPayload>("log:status", (e) => {
     useApp.getState().onStatus(e.payload);
   });
+}
+
+/** Finder/Open With can arrive before the webview is ready. Rust queues paths
+ * and emits only a readiness signal; draining after listener registration makes
+ * both cold-start and already-running delivery race-safe. */
+export async function initOpenedFileEvents(): Promise<void> {
+  const drain = async () => {
+    const paths = await takeOpenedFiles();
+    if (paths.length) useApp.getState().openTransientFiles(paths);
+  };
+
+  await listen<void>("app:open-files-ready", () => {
+    void drain().catch((err) => console.error("open-file drain failed", err));
+  });
+  await drain();
 }

@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { listen } from "@tauri-apps/api/event";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { open } from "@tauri-apps/plugin-dialog";
 import { Titlebar } from "./components/Titlebar";
 import { Sidebar } from "./components/Sidebar";
@@ -78,14 +78,10 @@ export default function App() {
 
   // open dropped files as transient sources
   useEffect(() => {
-    let unlisten: (() => void) | undefined;
-    void (async () => {
-      unlisten = await listen<{ paths: string[] }>("tauri://drag-drop", (e) => {
-        const paths = e.payload.paths;
-        if (paths?.length) openTransientFiles(paths);
-      });
-    })();
-    return () => unlisten?.();
+    const listener = getCurrentWebview().onDragDropEvent(({ payload }) => {
+      if (payload.type === "drop" && payload.paths.length) openTransientFiles(payload.paths);
+    });
+    return () => { void listener.then((unlisten) => unlisten()); };
   }, [openTransientFiles]);
 
   useEffect(() => {

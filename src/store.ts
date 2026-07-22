@@ -242,6 +242,7 @@ export const useApp = create<AppState>((set, get) => ({
       if (!moved) return s;
       const at = beforeId ? collections.findIndex((c) => c.id === beforeId) : -1;
       collections.splice(at < 0 ? collections.length : at, 0, moved);
+      if (collections.every((collection, index) => collection === s.collections[index])) return s;
       return { collections };
     }),
 
@@ -252,7 +253,9 @@ export const useApp = create<AppState>((set, get) => ({
       if (!moved) return s;
       const sources = s.sources.filter((x) => x.id !== id);
       const at = beforeId ? sources.findIndex((x) => x.id === beforeId) : -1;
-      sources.splice(at < 0 ? sources.length : at, 0, { ...moved, collectionId });
+      const nextMoved = moved.collectionId === collectionId ? moved : { ...moved, collectionId };
+      sources.splice(at < 0 ? sources.length : at, 0, nextMoved);
+      if (sources.every((source, index) => source === s.sources[index])) return s;
       return { sources };
     }),
 
