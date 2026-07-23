@@ -140,6 +140,49 @@ function ancestorPaths(path: string): string[] {
   return out;
 }
 
+function SearchBar({
+  inputRef,
+  query,
+  onQuery,
+  caseSensitive,
+  onCaseSensitive,
+  count,
+  onClose,
+}: {
+  inputRef: React.RefObject<HTMLInputElement>;
+  query: string;
+  onQuery: (query: string) => void;
+  caseSensitive: boolean;
+  onCaseSensitive: (caseSensitive: boolean) => void;
+  count: string;
+  onClose: () => void;
+}) {
+  return (
+    <div className="json-tree-search">
+      <Icon name="search" size={13} />
+      <input
+        ref={inputRef}
+        value={query}
+        placeholder="Find in JSON..."
+        spellCheck={false}
+        onChange={(e) => onQuery(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") onClose();
+        }}
+      />
+      <button
+        type="button"
+        className={`case-toggle ${caseSensitive ? "active" : ""}`}
+        title={`Case ${caseSensitive ? "sensitive" : "insensitive"}`}
+        onClick={() => onCaseSensitive(!caseSensitive)}
+      >
+        Aa
+      </button>
+      <span className="match-count">{count}</span>
+    </div>
+  );
+}
+
 export function JsonPanel({ line, onCopy }: {
   line: SelectedLine | null;
   onCopy: (text: string, label: string) => void;
@@ -196,13 +239,17 @@ export function JsonPanel({ line, onCopy }: {
         setSearchOpen(true);
         requestAnimationFrame(() => searchInputRef.current?.select());
       } else if (e.key === "Escape" && searchOpen) {
-        setSearchOpen(false);
-        setQuery("");
+        closeSearch();
       }
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [searchOpen]);
+
+  const closeSearch = () => {
+    setSearchOpen(false);
+    setQuery("");
+  };
 
   const collapsedCount = containers.reduce((count, path) => count + Number(collapsed.has(path)), 0);
   const matchCount = q ? filtered.length : 0;
@@ -223,31 +270,15 @@ export function JsonPanel({ line, onCopy }: {
   return (
     <div className="inspector-scroll json-dock">
       {searchOpen && (
-        <div className="json-tree-search">
-          <Icon name="search" size={13} />
-          <input
-            ref={searchInputRef}
-            value={query}
-            placeholder="Find in JSON…"
-            spellCheck={false}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Escape") {
-                setSearchOpen(false);
-                setQuery("");
-              }
-            }}
-          />
-          <button
-            type="button"
-            className={`case-toggle ${caseSensitive ? "active" : ""}`}
-            title={`Case ${caseSensitive ? "sensitive" : "insensitive"}`}
-            onClick={() => setCaseSensitive((v) => !v)}
-          >
-            Aa
-          </button>
-          <span className="match-count">{q ? `${matchCount}/${totalCount}` : ""}</span>
-        </div>
+        <SearchBar
+          inputRef={searchInputRef}
+          query={query}
+          onQuery={setQuery}
+          caseSensitive={caseSensitive}
+          onCaseSensitive={setCaseSensitive}
+          count={q ? `${matchCount}/${totalCount}` : ""}
+          onClose={closeSearch}
+        />
       )}
       <div className="json-dock-head">
         <span>
