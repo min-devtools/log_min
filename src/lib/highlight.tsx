@@ -3,13 +3,29 @@ import { tokenizeLogLine, type TokenSpan } from "./logPresentation";
 
 /**
  * The one token formula both the live view and trace snippets share:
- * guessed tokens win (they carry clickable tok-path spans), ANSI colors only
- * lines the tokenizer has nothing for, the Syntax toggle kills both.
+ * guessed tokens win where they overlap (they carry clickable tok-path spans),
+ * ANSI colors fill the gaps around them, the Syntax toggle kills both.
  */
 export function lineTokens(raw: string, ansi: TokenSpan[] | undefined, syntax: boolean): TokenSpan[] {
   if (!syntax) return [];
   const guessed = tokenizeLogLine(raw);
-  return guessed.length ? guessed : ansi ?? [];
+  if (!guessed.length) return ansi ?? [];
+  if (!ansi?.length) return guessed;
+  // both lists are sorted and non-overlapping — subtract the guessed tokens
+  // from each ANSI span, keep the remaining slices, then restore text order
+  const out: TokenSpan[] = [...guessed];
+  for (const a of ansi) {
+    let pos = a.start;
+    for (const g of guessed) {
+      if (g.end <= pos) continue;
+      if (g.start >= a.end) break;
+      if (g.start > pos) out.push({ start: pos, end: g.start, cls: a.cls });
+      pos = g.end;
+      if (pos >= a.end) break;
+    }
+    if (pos < a.end) out.push({ start: pos, end: a.end, cls: a.cls });
+  }
+  return out.sort((x, y) => x.start - y.start);
 }
 
 /** does `text` contain `q`? substring or regex, mirrors ring.search */
