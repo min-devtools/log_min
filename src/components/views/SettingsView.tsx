@@ -4,11 +4,13 @@ import { ToolButton } from "../../ui/ToolButton";
 import { useState } from "react";
 import { useApp } from "../../store";
 import { useFonts } from "../../lib/useFonts";
+import { useKeepScroll } from "../../lib/useKeepScroll";
 import { THEMES, themeBase } from "../../lib/themes";
 import { FONT_SIZE_STEP } from "../../lib/fontScale";
 import { EDITOR_LABELS, loadEditorApp, saveEditorApp, type EditorApp } from "../../lib/editor";
 
 export function SettingsView({ active }: { active: boolean }) {
+  const scrollRef = useKeepScroll<HTMLElement>(active);
   const theme = useApp((s) => s.theme);
   const compact = useApp((s) => s.compact);
   const vimKeys = useApp((s) => s.vimKeys);
@@ -20,7 +22,7 @@ export function SettingsView({ active }: { active: boolean }) {
   const [editorApp, setEditorApp] = useState<EditorApp>(loadEditorApp);
 
   return (
-    <section className={`content settings-view ${active ? "active" : ""}`}>
+    <section ref={scrollRef} className={`content settings-view ${active ? "active" : ""}`}>
       <div className="settings-shell">
         <div className="settings-header">
           <h2>Settings</h2>

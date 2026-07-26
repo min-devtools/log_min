@@ -38,7 +38,7 @@ const isDockerSource = (def: SourceDef) => def.kind === "cmd" && /^docker\s/.tes
 export function sourceIcon(def: SourceDef): IconName {
   if (def.kind === "file") return "docs";
   if (def.kind === "http") return "globe";
-  return isDockerSource(def) ? "topics" : "terminal";
+  return isDockerSource(def) ? "docker" : "terminal";
 }
 
 export type SourceStatus = "live" | "idle" | "error";
@@ -122,7 +122,7 @@ export interface StatusPayload {
   startedAt?: number;
 }
 
-export type TabKind = "welcome" | "source" | "source-edit" | "settings" | "error-trace";
+export type TabKind = "welcome" | "source" | "source-edit" | "settings" | "error-trace" | "combined";
 
 export interface TabDef {
   id: string;
@@ -136,4 +136,6 @@ export interface TabDef {
   transient?: boolean;
   /** kind === "error-trace": the ErrorGroup this tab traces */
   fingerprint?: string;
+  /** kind === "combined": the collection whose sources this tab interleaves */
+  collectionId?: string;
 }

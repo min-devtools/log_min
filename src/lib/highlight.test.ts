@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { lineTokens } from "./highlight";
+import { lineMatches, lineTokens, searchMarks } from "./highlight";
 
 describe("lineTokens", () => {
   it("keeps guessed tokens and fills the gaps with ANSI colors", () => {
@@ -29,5 +29,34 @@ describe("lineTokens", () => {
 
   it("returns nothing when syntax is off", () => {
     expect(lineTokens("ERROR id=42", [{ start: 0, end: 5, cls: "ansi-31" }], false)).toEqual([]);
+  });
+});
+
+describe("lineMatches", () => {
+  it("substring: case-insensitive by default, sensitive on demand", () => {
+    expect(lineMatches("GET /Orders 200", "orders", false, false)).toBe(true);
+    expect(lineMatches("GET /Orders 200", "orders", true, false)).toBe(false);
+  });
+
+  it("regex mode matches and never throws on bad patterns", () => {
+    expect(lineMatches("req=42", String.raw`req=\d+`, false, true)).toBe(true);
+    expect(lineMatches("req=42", "(", false, true)).toBe(false);
+  });
+
+  it("empty query never matches", () => {
+    expect(lineMatches("anything", "", false, false)).toBe(false);
+  });
+});
+
+describe("searchMarks", () => {
+  it("finds every substring occurrence", () => {
+    expect(searchMarks("ab AB ab", "ab", false, false)).toEqual([[0, 2], [3, 5], [6, 8]]);
+    expect(searchMarks("ab AB ab", "ab", true, false)).toEqual([[0, 2], [6, 8]]);
+  });
+
+  it("regex mode marks each match and survives zero-width patterns", () => {
+    expect(searchMarks("a1 b22", String.raw`\d+`, false, true)).toEqual([[1, 2], [4, 6]]);
+    expect(searchMarks("abc", "x*", false, true)).toEqual([]);
+    expect(searchMarks("abc", "(", false, true)).toEqual([]);
   });
 });

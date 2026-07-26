@@ -4,6 +4,7 @@ import { bufferFor } from "./ring";
 import { archiveFor } from "./errorArchive";
 import { errorIndexFor } from "./errors";
 import { insightIndexFor } from "./insight";
+import { recordBatch } from "./merged";
 import { useApp } from "../store";
 import type { BatchPayload, LogLine, ParsedBatch, SourceDef, StatusPayload } from "./types";
 
@@ -77,6 +78,7 @@ function ingestParsed({ sourceId, lines: tagged, dropped, patchPrev }: ParsedBat
   }
   const errorIndex = errorIndexFor(sourceId);
   bufferFor(sourceId).push(tagged);
+  if (tagged.length) recordBatch(sourceId, tagged[0].seq, tagged[tagged.length - 1].seq);
   insightIndexFor(sourceId).feed(tagged, Date.now());
   // archive first so ErrorIndex commits can tag snippets that already hold their lines
   const archive = archiveFor(sourceId);

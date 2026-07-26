@@ -12,6 +12,48 @@ export function lineTokens(raw: string, ansi: TokenSpan[] | undefined, syntax: b
   return guessed.length ? guessed : ansi ?? [];
 }
 
+/** does `text` contain `q`? substring or regex, mirrors ring.search */
+export function lineMatches(text: string, q: string, caseSensitive: boolean, regex: boolean): boolean {
+  if (!q) return false;
+  if (regex) {
+    try {
+      return new RegExp(q, caseSensitive ? "" : "i").test(text);
+    } catch {
+      return false;
+    }
+  }
+  const needle = caseSensitive ? q : q.toLowerCase();
+  return (caseSensitive ? text : text.toLowerCase()).includes(needle);
+}
+
+/** [start,end) of every occurrence of `q` — substring or regex, sorted, non-overlapping, capped */
+export function searchMarks(text: string, q: string, caseSensitive: boolean, regex: boolean): [number, number][] {
+  if (!q) return [];
+  const out: [number, number][] = [];
+  if (regex) {
+    let re: RegExp;
+    try {
+      re = new RegExp(q, caseSensitive ? "g" : "gi");
+    } catch {
+      return [];
+    }
+    for (let k = 0, m = re.exec(text); m && k < 400; m = re.exec(text), k++) {
+      if (m[0] === "") {
+        re.lastIndex++; // zero-width match — step forward or loop forever
+        continue;
+      }
+      out.push([m.index, m.index + m[0].length]);
+    }
+    return out;
+  }
+  const needle = caseSensitive ? q : q.toLowerCase();
+  const hay = caseSensitive ? text : text.toLowerCase();
+  for (let i = hay.indexOf(needle); i >= 0 && out.length < 400; i = hay.indexOf(needle, i + needle.length)) {
+    out.push([i, i + needle.length]);
+  }
+  return out;
+}
+
 /** [start,end) of every case-insensitive occurrence of `q` — sorted, non-overlapping, capped */
 export function findMarks(text: string, q: string): [number, number][] {
   if (!q) return [];

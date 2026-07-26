@@ -5,6 +5,7 @@ import { openLocation } from "../../lib/editor";
 import { errorIndexFor } from "../../lib/errors";
 import { countMatches, findMarks, lineTokens, renderSpans } from "../../lib/highlight";
 import { useApp } from "../../store";
+import { useKeepScroll } from "../../lib/useKeepScroll";
 import { Icon } from "../../ui/Icon";
 import { ToolButton } from "../../ui/ToolButton";
 
@@ -80,7 +81,7 @@ export function ErrorTraceView({ sourceId, fingerprint, title, active }: Props) 
   const [query, setQuery] = useState("");
   const [matchIdx, setMatchIdx] = useState(0);
   const searchInputRef = useRef<HTMLInputElement>(null);
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useKeepScroll<HTMLDivElement>(active);
   // follows the source's Syntax toggle (same localStorage key LogView writes)
   const syntax = localStorage.getItem(`log:syntax:${sourceId}`) !== "0";
 

@@ -3,6 +3,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { ToolButton } from "../../ui/ToolButton";
 import { Icon, type IconName } from "../../ui/Icon";
 import { newSourceId, useApp } from "../../store";
+import { useKeepScroll } from "../../lib/useKeepScroll";
 import { parseCurl } from "../../lib/curl";
 import { dockerPs, type DockerContainer } from "../../lib/logmin";
 import type { SourceDef, SourceKind } from "../../lib/types";
@@ -14,7 +15,7 @@ const TYPES: { id: FormKind; icon: IconName; title: string; desc: string }[] = [
   { id: "cmd", icon: "terminal", title: "Command", desc: "Run a process via your login shell and capture its output." },
   { id: "file", icon: "docs", title: "File", desc: "Tail a local log file. Follows rotation and truncation." },
   { id: "http", icon: "globe", title: "HTTP", desc: "Poll a remote log with Range requests — only new bytes transfer." },
-  { id: "docker", icon: "topics", title: "Docker", desc: "Pick a running container and stream docker logs -f." },
+  { id: "docker", icon: "docker", title: "Docker", desc: "Pick a running container and stream docker logs -f." },
 ];
 
 function parseKv(text: string): Record<string, string> | undefined {
@@ -38,6 +39,7 @@ function kvToText(kv?: Record<string, string>): string {
 const baseName = (p: string) => p.split("/").filter(Boolean).pop() ?? p;
 
 export function SourceEditView({ active }: { active: boolean }) {
+  const scrollRef = useKeepScroll<HTMLElement>(active);
   const sources = useApp((s) => s.sources);
   const editingSourceId = useApp((s) => s.editingSourceId);
   const sourceDraft = useApp((s) => s.sourceDraft);
@@ -194,7 +196,7 @@ export function SourceEditView({ active }: { active: boolean }) {
   );
 
   return (
-    <section className={`content settings-view ${active ? "active" : ""}`}>
+    <section ref={scrollRef} className={`content settings-view ${active ? "active" : ""}`}>
       <div className="source-edit-shell">
         <div className="settings-header">
           <h2>{existing ? "Edit Source" : "New Source"}</h2>
@@ -336,7 +338,7 @@ export function SourceEditView({ active }: { active: boolean }) {
           <section className="settings-card">
             <h3>Running containers</h3>
             <div className="settings-row">
-              <span className="settings-icon"><Icon name="topics" size={15} /></span>
+              <span className="settings-icon"><Icon name="container" size={15} /></span>
               <div className="settings-copy">
                 <strong>Pick a container</strong>
                 <span>Click one to stream its logs (docker logs -f, last 200 lines). Use the ports column to find a container by its published port.</span>
@@ -359,6 +361,9 @@ export function SourceEditView({ active }: { active: boolean }) {
               <div className="docker-list">
                 {(containers ?? []).map((c) => (
                   <button key={c.id} type="button" className="docker-row" onClick={() => openContainer(c)}>
+                    <span className="docker-row-icon">
+                      <Icon name="container" size={16} />
+                    </span>
                     <span className="docker-row-main">
                       <strong>{c.name}</strong>
                       <span>{c.image}</span>

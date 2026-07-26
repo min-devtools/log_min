@@ -1,3 +1,4 @@
+import { motion } from "motion/react";
 import type { IconName } from "./Icon";
 import { Icon } from "./Icon";
 
@@ -20,9 +21,10 @@ export function MiniTabs({
   return (
     <div className="mini-tabs">
       {tabs.map((t) => (
-        <button
+        <motion.button
           key={t.id}
           type="button"
+          whileTap={{ scale: 0.96 }}
           className={`${t.id === active ? "active" : ""}`}
           title={t.title ?? t.label}
           aria-label={t.label}
@@ -30,7 +32,7 @@ export function MiniTabs({
         >
           {t.icon && <Icon name={t.icon} size={13} />}
           {t.label}
-        </button>
+        </motion.button>
       ))}
     </div>
   );
