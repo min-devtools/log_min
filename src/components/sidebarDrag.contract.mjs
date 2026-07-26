@@ -15,6 +15,15 @@ test("sidebar reorder uses pointer events so native file drop stays available", 
   assert.doesNotMatch(sidebar, /\bdraggable\b|onDrag(?:Start|Over|Leave|End)|\bonDrop=|dataTransfer/);
 });
 
+test("drops commit on release anywhere, not only over a row", async () => {
+  const sidebar = await readFile(sidebarUrl, "utf8");
+  // row-scoped pointerup misses drops on gaps, collection bodies and the empty note
+  assert.doesNotMatch(sidebar, /onPointerUp|setPointerCapture/);
+  assert.match(sidebar, /window\.addEventListener\("pointerup"/);
+  assert.match(sidebar, /window\.addEventListener\("pointermove"/);
+  assert.match(sidebar, /window\.addEventListener\("pointercancel"/);
+});
+
 test("hovering each valid source and collection target exposes immediate feedback", async () => {
   const sidebar = await readFile(sidebarUrl, "utf8");
   assert.match(sidebar, /setDropIndicator\(`src:\$\{target\.id\}`\)/);

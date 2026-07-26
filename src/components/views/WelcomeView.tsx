@@ -1,8 +1,10 @@
 import { ToolButton } from "../../ui/ToolButton";
 import { Icon, type IconName } from "../../ui/Icon";
 import { useApp } from "../../store";
+import { useKeepScroll } from "../../lib/useKeepScroll";
 
 export function WelcomeView({ active }: { active: boolean }) {
+  const scrollRef = useKeepScroll<HTMLElement>(active);
   const sources = useApp((s) => s.sources);
   const { openTab, editSource, setCommandOpen } = useApp.getState();
 
@@ -16,7 +18,7 @@ export function WelcomeView({ active }: { active: boolean }) {
   ];
 
   return (
-    <section className={`content welcome-view ${active ? "active" : ""}`}>
+    <section ref={scrollRef} className={`content welcome-view ${active ? "active" : ""}`}>
       <div className="welcome-shell">
         <div className="welcome-hero">
           <div className="welcome-copy">

@@ -6,6 +6,7 @@ import { bufferFor, dropBuffer } from "./lib/ring";
 import { archiveFor, dropArchive } from "./lib/errorArchive";
 import { dropErrorIndex, errorIndexFor } from "./lib/errors";
 import { dropInsightIndex } from "./lib/insight";
+import { purgeSource } from "./lib/merged";
 import * as api from "./lib/logmin";
 import { sourceIcon } from "./lib/types";
 import type { CollectionDef, SelectedLine, SourceDef, SourceRuntime, StatusPayload, TabDef, TabKind } from "./lib/types";
@@ -16,6 +17,7 @@ const TAB_META: Record<TabKind, { title: string; icon: TabDef["icon"]; iconClass
   "source-edit": { title: "New Source", icon: "plus", iconClass: "soft-green" },
   settings: { title: "Settings", icon: "settings", iconClass: "soft-orange" },
   "error-trace": { title: "Error", icon: "zap", iconClass: "soft-orange" },
+  combined: { title: "Combined", icon: "rows", iconClass: "soft-blue" },
 };
 
 const sourceTabId = (sourceId: string) => `src-${sourceId}`;
@@ -134,6 +136,8 @@ interface AppState {
   // tabs
   openTab: (kind: TabKind) => void;
   openSourceTab: (sourceId: string) => void;
+  /** open (or focus) the combined docker-compose-style view for a collection */
+  openCombinedTab: (collectionId: string) => void;
   /** open (or focus) the dedicated trace tab for an error group */
   openErrorTab: (sourceId: string, fingerprint: string, message: string) => void;
   /** open file(s) as transient sources without persisting them */
@@ -226,13 +230,18 @@ export const useApp = create<AppState>((set, get) => ({
     set((s) => ({ collections: [...s.collections, { id: newCollectionId(), name }] })),
 
   renameCollection: (id, name) =>
-    set((s) => ({ collections: s.collections.map((c) => (c.id === id ? { ...c, name } : c)) })),
+    set((s) => ({
+      collections: s.collections.map((c) => (c.id === id ? { ...c, name } : c)),
+      tabs: s.tabs.map((t) => (t.collectionId === id ? { ...t, title: name } : t)),
+    })),
 
-  deleteCollection: (id) =>
+  deleteCollection: (id) => {
+    get().closeTab(`comb-${id}`);
     set((s) => ({
       collections: s.collections.filter((c) => c.id !== id),
       sources: s.sources.map((x) => (x.collectionId === id ? { ...x, collectionId: undefined } : x)),
-    })),
+    }));
+  },
 
   reorderCollection: (id, beforeId) =>
     set((s) => {
@@ -266,6 +275,7 @@ export const useApp = create<AppState>((set, get) => ({
       // already stopped
     }
     dropBuffer(id);
+    purgeSource(id);
     dropErrorIndex(id);
     dropInsightIndex(id);
     dropArchive(id);
@@ -352,7 +362,10 @@ export const useApp = create<AppState>((set, get) => ({
       };
     }),
 
-  onBufferCleared: (sourceId) =>
+  onBufferCleared: (sourceId) => {
+    // the ring restarts seqs at 0 — drop its stale ledger entries so MergedIndex
+    // doesn't produce duplicate {sourceId, seq} rows once it refills
+    purgeSource(sourceId);
     // errors (index + archive + counter) survive a clear by design — only the ring resets
     set((s) => ({
       bufVersions: { ...s.bufVersions, [sourceId]: (s.bufVersions[sourceId] ?? 0) + 1 },
@@ -361,7 +374,8 @@ export const useApp = create<AppState>((set, get) => ({
         [sourceId]: { ...runtimeOf(s, sourceId), lines: 0, dropped: 0 },
       },
       inspectLine: s.inspectLine?.sourceId === sourceId ? null : s.inspectLine,
-    })),
+    }));
+  },
 
   clearErrors: (sourceId) => {
     errorIndexFor(sourceId).clear();
@@ -450,6 +464,21 @@ export const useApp = create<AppState>((set, get) => ({
           sourceId,
           transient: def.transient,
         },
+      ],
+      activeTabId: id,
+    });
+  },
+
+  openCombinedTab: (collectionId) => {
+    const s = get();
+    const id = `comb-${collectionId}`;
+    if (s.tabs.some((t) => t.id === id)) return set({ activeTabId: id });
+    const col = s.collections.find((c) => c.id === collectionId);
+    if (!col) return;
+    set({
+      tabs: [
+        ...s.tabs,
+        { id, kind: "combined", title: col.name, icon: "rows", iconClass: "soft-blue", collectionId },
       ],
       activeTabId: id,
     });

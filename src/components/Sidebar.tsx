@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
+import { motion, AnimatePresence } from "motion/react";
 import { Badge } from "../ui/Badge";
 import { ContextMenu, type ContextMenuItem } from "../ui/ContextMenu";
 import { newSourceId, useApp } from "../store";
@@ -23,6 +24,7 @@ type DragItem =
   | { kind: "source"; id: string; collectionId?: string };
 
 const COLLAPSED_KEY = "log:collapsed-collections";
+const ROW_SPRING = { type: "spring", stiffness: 450, damping: 32 } as const;
 
 export function Sidebar() {
   const [filter, setFilter] = useState("");
@@ -58,7 +60,7 @@ export function Sidebar() {
     }),
   );
   const {
-    openTab, openSourceTab, editSource, deleteSource, startSource, stopSource,
+    openTab, openSourceTab, openCombinedTab, editSource, deleteSource, startSource, stopSource,
     openDialog, saveSource, showToast, createCollection, renameCollection,
     deleteCollection, reorderCollection, moveSource, setCollections,
   } = useApp.getState();
@@ -170,17 +172,66 @@ export function Sidebar() {
     setDragOverRoot(false);
   };
 
+  // Listeners live on window, not the row: WKWebView drops pointer capture, and a drop
+  // that lands on a gap, the collection body or the "Drag sources here" note has no row
+  // under it at all — a row-scoped release handler simply never fires there.
   const beginPointerDrag = (event: React.PointerEvent<HTMLElement>, item: DragItem) => {
-    if (event.button !== 0) return;
-    pointerDrag.current = {
+    if (event.button !== 0 || pointerDrag.current) return;
+    suppressClick.current = false;
+    const pending = {
       pointerId: event.pointerId,
       startX: event.clientX,
       startY: event.clientY,
       item,
       active: false,
     };
-    event.currentTarget.setPointerCapture(event.pointerId);
+    pointerDrag.current = pending;
+
+    const detach = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onCancel);
+    };
+    const onMove = (e: PointerEvent) => {
+      if (e.pointerId !== pending.pointerId) return;
+      if (!pending.active) {
+        if (Math.hypot(e.clientX - pending.startX, e.clientY - pending.startY) < 4) return;
+        pending.active = true;
+        setDragging(pending.item);
+      }
+      e.preventDefault();
+      showPointerTarget(e.clientX, e.clientY, pending.item);
+    };
+    const onUp = (e: PointerEvent) => {
+      if (e.pointerId !== pending.pointerId) return;
+      detach();
+      if (pending.active) {
+        suppressClick.current = true;
+        commitPointerDrop(e.clientX, e.clientY, pending.item);
+      }
+      clearDrag();
+    };
+    const onCancel = (e: PointerEvent) => {
+      if (e.pointerId !== pending.pointerId) return;
+      detach();
+      clearDrag();
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onCancel);
   };
+
+  // the click that trails a completed drag must not also open/toggle the row
+  useEffect(() => {
+    const onClick = (event: MouseEvent) => {
+      if (!suppressClick.current) return;
+      suppressClick.current = false;
+      event.preventDefault();
+      event.stopPropagation();
+    };
+    window.addEventListener("click", onClick, true);
+    return () => window.removeEventListener("click", onClick, true);
+  }, []);
 
   const afterSource = (source: SourceDef): string | null => {
     const members = sources.filter((candidate) => candidate.collectionId === source.collectionId && !candidate.transient);
@@ -244,56 +295,22 @@ export function Sidebar() {
     if (kind === "root" && item.collectionId) moveSource(item.id, undefined, null);
   };
 
-  const movePointerDrag = (event: React.PointerEvent<HTMLElement>) => {
-    const pending = pointerDrag.current;
-    if (!pending || pending.pointerId !== event.pointerId) return;
-    if (!pending.active && Math.hypot(event.clientX - pending.startX, event.clientY - pending.startY) < 4) return;
-    if (!pending.active) {
-      pending.active = true;
-      setDragging(pending.item);
-    }
-    event.preventDefault();
-    showPointerTarget(event.clientX, event.clientY, pending.item);
-  };
-
-  const finishPointerDrag = (event: React.PointerEvent<HTMLElement>) => {
-    const pending = pointerDrag.current;
-    if (!pending || pending.pointerId !== event.pointerId) return;
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
-    if (pending.active) {
-      event.preventDefault();
-      event.stopPropagation();
-      commitPointerDrop(event.clientX, event.clientY, pending.item);
-      suppressClick.current = true;
-      setTimeout(() => { suppressClick.current = false; }, 0);
-    }
-    clearDrag();
-  };
-
-  const cancelPointerDrag = (event: React.PointerEvent<HTMLElement>) => {
-    if (pointerDrag.current?.pointerId === event.pointerId) clearDrag();
-  };
-
   const sourceRow = (s: SourceDef) => {
     const status = statusOf(s.id);
     return (
-      <div
+      <motion.div
         key={s.id}
+        layout
+        initial={{ opacity: 0, height: 0 }}
+        animate={{ opacity: 1, height: "auto" }}
+        exit={{ opacity: 0, height: 0 }}
+        transition={ROW_SPRING}
         className={`nav-item request-node ${activeTab?.sourceId === s.id ? "active" : ""} ${dropIndicator === `src:${s.id}` ? "drop-prefix" : ""} ${dragging?.kind === "source" && dragging.id === s.id ? "dragging" : ""}`}
         title={s.path ?? s.command}
         data-drop-kind="source"
         data-drop-id={s.id}
         onPointerDown={(event) => beginPointerDrag(event, { kind: "source", id: s.id, collectionId: s.collectionId })}
-        onPointerMove={movePointerDrag}
-        onPointerUp={finishPointerDrag}
-        onPointerCancel={cancelPointerDrag}
-        onClick={(event) => {
-          if (suppressClick.current) {
-            event.preventDefault();
-            return;
-          }
-          openSourceTab(s.id);
-        }}
+        onClick={() => openSourceTab(s.id)}
         onContextMenu={(e) => {
           e.preventDefault();
           setMenu({ x: e.clientX, y: e.clientY, id: s.id });
@@ -304,7 +321,7 @@ export function Sidebar() {
         <Badge tone={statusTone(status)}>
           {status === "live" ? "live" : status === "error" ? "error" : "idle"}
         </Badge>
-      </div>
+      </motion.div>
     );
   };
 
@@ -339,6 +356,7 @@ export function Sidebar() {
   const menuCollection = colMenu ? collections.find((c) => c.id === colMenu.id) : undefined;
   const colMenuItems: ContextMenuItem[] = menuCollection
     ? [
+        { icon: "rows", label: "Open combined view", strong: true, onClick: () => openCombinedTab(menuCollection.id) },
         { icon: "pencil", label: "Rename", onClick: () => void renameCol(menuCollection) },
         { icon: "status", label: "Set color…", onClick: () => setPickingColor(menuCollection.id) },
         { icon: "trash", label: "Delete (keep sources)", onClick: () => removeCol(menuCollection) },
@@ -385,14 +403,20 @@ export function Sidebar() {
             <Icon name="folder-plus" className="soft-orange" /><span>New Collection</span><span />
           </div>
 
+          <AnimatePresence initial={false}>
           {collections.map((c) => {
             const members = sources.filter((s) => s.collectionId === c.id && !s.transient);
             const shown = members.filter((s) => matches(s) || c.name.toLowerCase().includes(q));
             if (q && shown.length === 0 && !c.name.toLowerCase().includes(q)) return null;
             const isCollapsed = !q && collapsed.has(c.id);
             return (
-              <div
+              <motion.div
                 key={c.id}
+                layout
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={ROW_SPRING}
                 className={`collection-tree ${isCollapsed ? "collapsed" : ""} ${dragOverCollection === c.id ? "drop-target" : ""}`}
                 data-drop-kind="collection"
                 data-drop-id={c.id}
@@ -403,13 +427,7 @@ export function Sidebar() {
                   className={`nav-item collection-node with-conn-dot ${dropIndicator === `col:${c.id}:before` ? "drop-before" : ""} ${dropIndicator === `col:${c.id}:after` ? "drop-after" : ""} ${dragging?.kind === "collection" && dragging.id === c.id ? "dragging" : ""}`}
                   aria-expanded={!isCollapsed}
                   onPointerDown={(event) => beginPointerDrag(event, { kind: "collection", id: c.id })}
-                  onPointerMove={movePointerDrag}
-                  onPointerUp={finishPointerDrag}
-                  onPointerCancel={cancelPointerDrag}
-                  onClick={(event) => {
-                    if (!suppressClick.current) toggleCollection(c.id);
-                    else event.preventDefault();
-                  }}
+                  onClick={() => toggleCollection(c.id)}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" || e.key === " ") {
                       e.preventDefault();
@@ -431,41 +449,52 @@ export function Sidebar() {
                   <Badge>{members.length || ""}</Badge>
                 </div>
                 <div className="collection-requests">
-                  {shown.map(sourceRow)}
+                  <AnimatePresence initial={false}>
+                    {shown.map(sourceRow)}
+                  </AnimatePresence>
                   {members.length === 0 && <div className="empty-note collection-empty">Drag sources here.</div>}
                 </div>
-              </div>
+              </motion.div>
             );
           })}
+          </AnimatePresence>
 
           <div
             className={`root-sources ${dragOverRoot ? "drop-target" : ""}`}
             data-drop-kind="root"
           >
-            {rootSources.filter(matches).map(sourceRow)}
+            <AnimatePresence initial={false}>
+              {rootSources.filter(matches).map(sourceRow)}
+            </AnimatePresence>
           </div>
           {!sources.length && (
             <div className="empty-note">No sources yet. Add a file to tail or a command to run.</div>
           )}
         </div>
       </div>
-      {menu && (
-        <ContextMenu x={menu.x} y={menu.y} items={menuItems} onClose={() => setMenu(null)} />
-      )}
-      {colMenu && (
-        <ContextMenu x={colMenu.x} y={colMenu.y} items={colMenuItems} onClose={() => setColMenu(null)} />
-      )}
-      {pickingColor && (
-        <ColorPicker
-          value={collections.find((c) => c.id === pickingColor)?.color}
-          onPick={(color) =>
-            setCollections(
-              collections.map((c) => (c.id === pickingColor ? { ...c, color: color ?? undefined } : c)),
-            )
-          }
-          onClose={() => setPickingColor(null)}
-        />
-      )}
+      <AnimatePresence>
+        {menu && (
+          <ContextMenu x={menu.x} y={menu.y} items={menuItems} onClose={() => setMenu(null)} />
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {colMenu && (
+          <ContextMenu x={colMenu.x} y={colMenu.y} items={colMenuItems} onClose={() => setColMenu(null)} />
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {pickingColor && (
+          <ColorPicker
+            value={collections.find((c) => c.id === pickingColor)?.color}
+            onPick={(color) =>
+              setCollections(
+                collections.map((c) => (c.id === pickingColor ? { ...c, color: color ?? undefined } : c)),
+              )
+            }
+            onClose={() => setPickingColor(null)}
+          />
+        )}
+      </AnimatePresence>
     </aside>
   );
 }

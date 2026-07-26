@@ -1539,19 +1539,53 @@ body.light .docs-preview-editor { color: var(--editor-fg); }
 .docker-row:hover { background: var(--surface-hover); }
 .docker-row:focus-visible { outline: 2px solid var(--accent-secondary); outline-offset: -2px; }
 
-.docker-row-main { display: grid; gap: 2px; min-width: 0; }
-.docker-row-main strong { color: var(--text-primary); font-size: 0.9231rem; }
+.docker-row-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--surface-raised);
+  color: var(--text-muted);
+  flex: none;
+}
+
+.docker-row-main { display: grid; gap: 2px; min-width: 0; flex: 1 1 auto; }
+.docker-row-main strong {
+  color: var(--text-primary);
+  font-size: 0.9231rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 .docker-row-main span {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font: 0.7692rem/1.4 var(--font-mono);
+  color: var(--text-muted);
 }
 
-.docker-row-meta { display: grid; gap: 2px; justify-items: end; flex: none; }
-.docker-row-meta code { font: 0.7692rem/1.4 var(--font-mono); color: var(--text-primary); }
-.docker-row-meta em { font-style: normal; font-size: 0.7692rem; color: var(--text-muted); }
+.docker-row-meta {
+  display: grid;
+  gap: 2px;
+  justify-items: end;
+  min-width: 0;
+  flex: 0 1 auto;
+  max-width: 50%;
+  text-align: right;
+}
+.docker-row-meta code {
+  font: 0.7692rem/1.4 var(--font-mono);
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+.docker-row-meta em { font-style: normal; font-size: 0.7692rem; color: var(--text-muted); white-space: nowrap; }
 
 /* command editor — roomy terminal-style textarea */
 .cmd-input {
@@ -2011,3 +2045,40 @@ body.light .docs-preview-editor { color: var(--editor-fg); }
   background: color-mix(in srgb, var(--accent, #6ea8fe) 12%, transparent);
   border-radius: 6px;
 }
+
+/* ── combined (docker-compose-style) view ─────────────────────────────── */
+.combined-prefix {
+  display: inline-block;
+  flex: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: right;
+  margin-right: 10px;
+  padding-right: 8px;
+  border-right: 1px solid var(--border-default);
+  opacity: 0.9;
+  user-select: none;
+}
+.combined-chips {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+}
+.combined-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border: 1px solid var(--border-default);
+  border-radius: 999px;
+  background: none;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 0.78rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.combined-chip .conn-dot { background: var(--conn); }
+.combined-chip.muted { opacity: 0.45; }
+.combined-chip.muted .conn-dot { background: var(--text-muted); }

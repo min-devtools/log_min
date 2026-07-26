@@ -15,6 +15,7 @@ import { LogView } from "./components/views/LogView";
 import { ErrorTraceView } from "./components/views/ErrorTraceView";
 import { SourceEditView } from "./components/views/SourceEditView";
 import { SettingsView } from "./components/views/SettingsView";
+import { CombinedView } from "./components/views/CombinedView";
 import { inspectorAvailable, useApp } from "./store";
 import { themeBase } from "./lib/themes";
 import { applyPalette, readBuiltinPalette } from "./lib/themeContract";
@@ -29,6 +30,7 @@ function renderView(tab: TabDef, active: boolean) {
       return <ErrorTraceView key={tab.id} sourceId={tab.sourceId!} fingerprint={tab.fingerprint!} title={tab.title} active={active} />;
     case "source-edit": return <SourceEditView key={tab.id} active={active} />;
     case "settings": return <SettingsView key={tab.id} active={active} />;
+    case "combined": return <CombinedView key={tab.id} tabId={tab.id} collectionId={tab.collectionId!} active={active} />;
   }
 }
 

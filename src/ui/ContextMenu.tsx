@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { motion } from "motion/react";
 import { Icon, type IconName } from "./Icon";
 
 export interface ContextMenuItem {
@@ -45,7 +46,15 @@ export function ContextMenu({ x, y, items, onClose }: Props) {
   }, [x, y]);
 
   return (
-    <div ref={ref} className="index-context-menu" style={{ left: x, top: y }}>
+    <motion.div
+      ref={ref}
+      className="index-context-menu"
+      style={{ left: x, top: y }}
+      initial={{ opacity: 0, scale: 0.93, y: -4 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.93 }}
+      transition={{ duration: 0.14, ease: [0.32, 0.72, 0, 1] }}
+    >
       {items.map((item) => (
         <div
           key={item.label}
@@ -60,6 +69,6 @@ export function ContextMenu({ x, y, items, onClose }: Props) {
           {item.kbd ? <span className="kbd">{item.kbd}</span> : <span />}
         </div>
       ))}
-    </div>
+    </motion.div>
   );
 }
