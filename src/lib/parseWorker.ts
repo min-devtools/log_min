@@ -23,6 +23,9 @@ self.onmessage = (e: MessageEvent<BatchPayload>) => {
   const asm = assemblerFor(sourceId);
   const prev = lastLines.get(sourceId);
   const prevHadTrace = prev?.traceId !== undefined;
+  // one stamp per batch: receive time for the whole batch is close enough
+  // (batches land at ~30Hz) and avoids 500 Date.now() calls per batch
+  const at = Date.now();
   const tagged: LogLine[] = lines.map((l) => {
     // ANSI: raw is stored stripped (search/copy stay clean), SGR colors kept as spans
     let raw = l.raw;
@@ -32,7 +35,7 @@ self.onmessage = (e: MessageEvent<BatchPayload>) => {
       raw = parsed.clean;
       if (parsed.spans.length) ansi = parsed.spans;
     }
-    const line: LogLine = { ...l, raw, ansi, level: detectLevel(raw) };
+    const line: LogLine = { ...l, raw, ansi, level: detectLevel(raw), at };
     asm.feed(line);
     return line;
   });

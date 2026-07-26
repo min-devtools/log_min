@@ -2139,3 +2139,35 @@ body.light .docs-preview-editor { color: var(--editor-fg); }
 .combined-chip .conn-dot { background: var(--conn); }
 .combined-chip.muted { opacity: 0.45; }
 .combined-chip.muted .conn-dot { background: var(--text-muted); }
+
+/* receive-time gutter (LogView + combined, toggleable) */
+.log-time {
+  flex: none;
+  width: 8ch;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+}
+
+/* wrapped rows top-align their gutters with the first visual line */
+.log-line.wrapped .log-time,
+.log-line.wrapped .combined-prefix { line-height: inherit; }
+
+/* origin chip on aggregated error groups (combined dock) */
+.error-group-src {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  max-width: 14ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.72rem;
+}
+.error-group-src .conn-dot { background: currentColor; box-shadow: none; width: 6px; height: 6px; }
+
+/* origin row in the combined dock's Inspect panel */
+.inspect-origin { display: inline-flex; align-items: center; gap: 5px; }
+.inspect-origin .conn-dot { background: currentColor; box-shadow: none; }

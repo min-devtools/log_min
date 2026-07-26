@@ -1,6 +1,5 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { useVirtualizer } from "@tanstack/react-virtual";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { save } from "@tauri-apps/plugin-dialog";
 import { useShallow } from "zustand/react/shallow";
@@ -12,69 +11,18 @@ import { runtimeOf, useApp } from "../../store";
 import { bufferFor } from "../../lib/ring";
 import { openLocation } from "../../lib/editor";
 import { copyTextForLines } from "../../lib/errors";
-import { lineMatches, lineTokens, renderSpans, searchMarks } from "../../lib/highlight";
 import { insightIndexFor } from "../../lib/insight";
-import { LiveFilter } from "../../lib/liveFilter";
+import { RingModel } from "../../lib/logModel";
 import { saveText } from "../../lib/logmin";
-import { rawLogText } from "../../lib/logPresentation";
-import { estimateLogRowHeight } from "../../lib/wrapLayout";
 import { sourceIcon } from "../../lib/types";
+import { fmtClock, fmtInt, LogRow, useRowHeight } from "../log/LogRow";
+import { LogSearchBar } from "../log/LogSearchBar";
+import { useFrameVersion } from "../log/useFrameVersion";
+import { useJsonCollapse, useLogSearch } from "../log/useLogSearch";
+import { useLogSelection } from "../log/useLogSelection";
+import { useLogKeys } from "../log/useLogKeys";
+import { useLogViewport } from "../log/useLogViewport";
 import type { LogLevel, LogLine } from "../../lib/types";
-
-// 8 rows ≈ 170px of runway each side; 20 doubled the mounted DOM for no visible gain
-const OVERSCAN = 8;
-const COLLAPSE_LEN = 1200;
-const PREVIEW_LEN = 200;
-
-const isJsonLike = (raw: string) => /^\s*[\[{]/.test(raw);
-const previewText = (raw: string) => raw.slice(0, Math.min(raw.length, PREVIEW_LEN)) + "…";
-
-/** token spans survive row unmount/remount — the virtual window churns rows on
- * every scroll reversal and follow-mode batch, and re-running the regex
- * tokenizer on remount was pure waste. Keyed by the immutable ring line object;
- * the string key covers every input that changes the rendered spans. */
-const spanCache = new WeakMap<LogLine, { key: string; content: ReactNode }>();
-
-/** row height in px, derived from the app font size (mono line + padding) */
-function useRowHeight(): number {
-  const uiFontSize = useApp((s) => s.uiFontSize);
-  return Math.round(uiFontSize * 1.55);
-}
-
-/** bufVersions bumps at batch rate — 30Hz per live source, more with several.
- * Each bump is its own zustand set → its own render pass, and on a slow machine
- * those renders queue back-to-back and starve the frame budget. Subscribe
- * through an rAF gate instead: however many batches land, the view repaints at
- * most once per frame, always with the latest version. */
-function useFrameVersion(sourceId: string, active: boolean): number {
-  const [version, setVersion] = useState(() => useApp.getState().bufVersions[sourceId] ?? 0);
-  useEffect(() => {
-    if (!active) return;
-    let raf = 0;
-    let latest = useApp.getState().bufVersions[sourceId] ?? 0;
-    setVersion(latest);
-    const unsub = useApp.subscribe((s) => {
-      const next = s.bufVersions[sourceId] ?? 0;
-      if (next === latest) return;
-      latest = next;
-      if (!raf) {
-        raf = requestAnimationFrame(() => {
-          raf = 0;
-          setVersion(latest);
-        });
-      }
-    });
-    return () => {
-      unsub();
-      cancelAnimationFrame(raf);
-    };
-  }, [sourceId, active]);
-  return active ? version : -1;
-}
-
-function fmtInt(n: number): string {
-  return n.toLocaleString("en-US").replace(/,/g, " ");
-}
 
 /** 5000 → "5k"; non-round values stay plain numbers */
 function fmtCapValue(n: number): string {
@@ -88,135 +36,6 @@ function parseCap(text: string): number | null {
   const n = /k\s*$/i.test(text) ? Number(m[1]) * 1000 : Number(m[1]);
   return Number.isFinite(n) && n > 0 ? Math.round(n) : null;
 }
-
-interface RowProps {
-  line: LogLine;
-  idx: number;
-  wrap: boolean;
-  /** wrap: translateY offset · non-wrap: absolute top, both px */
-  start: number;
-  rowH: number;
-  syntax: boolean;
-  selected: boolean;
-  current: boolean;
-  flash: boolean;
-  collapsed: boolean;
-  qRaw: string;
-  caseSensitive: boolean;
-  regexMode: boolean;
-  measure?: (node: HTMLDivElement | null) => void;
-  onRowClick: (l: LogLine, e: React.MouseEvent) => void;
-  onToggleExpand: (seq: number) => void;
-  onInspect: (l: LogLine) => void;
-  onCopyRaw: (raw: string) => void;
-  openLoc: (loc: string) => void;
-}
-
-/** memoized row: batches land at 30Hz and every scroll tick re-renders the view —
- * unchanged rows must skip both the re-render and the regex tokenize pass */
-const LogRow = memo(function LogRow({
-  line,
-  idx,
-  wrap,
-  start,
-  rowH,
-  syntax,
-  selected,
-  current,
-  flash,
-  collapsed,
-  qRaw,
-  caseSensitive,
-  regexMode,
-  measure,
-  onRowClick,
-  onToggleExpand,
-  onInspect,
-  onCopyRaw,
-  openLoc,
-}: RowProps) {
-  const displayText = collapsed ? previewText(line.raw) : line.raw;
-  const isMatch = qRaw ? lineMatches(line.raw, qRaw, caseSensitive, regexMode) : false;
-  // token spans + search <mark>s — the expensive part; cached in spanCache so the
-  // work survives remounts (openLoc is ref-stable, so it can stay out of the key)
-  const cacheKey = `${collapsed ? "c" : "f"}|${syntax ? 1 : 0}|${caseSensitive ? 1 : 0}|${regexMode ? 1 : 0}|${isMatch ? qRaw : ""}`;
-  const cached = spanCache.get(line);
-  let content: ReactNode;
-  if (cached && cached.key === cacheKey) {
-    content = cached.content;
-  } else {
-    const text = rawLogText(displayText);
-    content = renderSpans(
-      text,
-      lineTokens(text, line.ansi, syntax),
-      isMatch ? searchMarks(text, qRaw, caseSensitive, regexMode) : [],
-      openLoc,
-    );
-    spanCache.set(line, { key: cacheKey, content });
-  }
-  const style: CSSProperties = wrap
-    ? { transform: `translateY(${start}px)`, minHeight: rowH }
-    : { top: start, height: rowH };
-  return (
-    <div
-      ref={measure}
-      data-index={measure ? idx : undefined}
-      className={[
-        "log-line",
-        wrap ? "wrapped" : "",
-        line.level ? `lv-${line.level}` : "",
-        selected ? "selected" : "",
-        isMatch ? "match" : "",
-        isMatch && current ? "current" : "",
-        flash ? "flash" : "",
-        collapsed ? "collapsed" : "",
-      ].filter(Boolean).join(" ")}
-      style={style}
-      onClick={(e) => onRowClick(line, e)}
-    >
-      {collapsed ? (
-        <span
-          className="log-raw collapsed-preview"
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggleExpand(line.seq);
-          }}
-        >
-          {content}
-          <span className="collapse-badge">{(line.raw.length / 1024).toFixed(1)} KB JSON</span>
-        </span>
-      ) : (
-        <span className="log-raw">{content}</span>
-      )}
-      {(line.raw[0] === "{" || line.raw[0] === "[") && (
-        <button
-          type="button"
-          className="log-copy log-json"
-          title="Inspect this line's JSON in the dock"
-          aria-label="Inspect this line's JSON in the dock"
-          onClick={(e) => {
-            e.stopPropagation();
-            onInspect(line);
-          }}
-        >
-          <Icon name="braces" size={12} />
-        </button>
-      )}
-      <button
-        type="button"
-        className="log-copy"
-        title="Copy complete raw line"
-        aria-label="Copy complete raw line"
-        onClick={(e) => {
-          e.stopPropagation();
-          onCopyRaw(line.raw);
-        }}
-      >
-        <Icon name="copy" size={12} />
-      </button>
-    </div>
-  );
-});
 
 interface Props {
   tabId: string;
@@ -233,54 +52,28 @@ export function LogView({ sourceId, active }: Props) {
       return { status: r.status, exitCode: r.exitCode, error: r.error, startedAt: r.startedAt };
     }),
   );
-  // hidden tabs unsubscribe from batches; activation flips the sentinel → one fresh paint
-  const version = useFrameVersion(sourceId, active);
+  const readVersion = useCallback(
+    (s: ReturnType<typeof useApp.getState>) => s.bufVersions[sourceId] ?? 0,
+    [sourceId],
+  );
+  const version = useFrameVersion(active, readVersion);
   // actions are stable — getState() avoids subscribing to the whole store
   const { startSource, stopSource, sendStdin, showToast, editSource, setInspectLine } = useApp.getState();
 
   const ring = bufferFor(sourceId);
+  const model = useMemo(() => new RingModel(sourceId), [sourceId]);
   const rowH = useRowHeight();
   const uiFontSize = useApp((s) => s.uiFontSize);
   // the Errors dock owns ⌘F for its own in-tab search while it's the visible dock tab
   const dockTab = useApp((s) => s.dockTab.tab);
 
-  const scrollRef = useRef<HTMLDivElement>(null);
-  /** viewport height, kept by the ResizeObserver — read this, not el.clientHeight */
-  const viewportHRef = useRef(0);
-  const [follow, setFollow] = useState(true);
   const [wrap, setWrap] = useState(() => localStorage.getItem(`log:wrap:${sourceId}`) !== "0");
   const [syntax, setSyntax] = useState(() => localStorage.getItem(`log:syntax:${sourceId}`) !== "0");
-  const [viewportWidth, setViewportWidth] = useState(900);
-  const followRef = useRef(true);
-  followRef.current = follow;
-  /** totalSeen when follow was paused — drives the "↓ N new lines" pill */
-  const pausedAtRef = useRef(0);
-  const [range, setRange] = useState<[number, number]>([0, 0]);
-  /** picked line seqs; anchor = last plain click, base for shift-ranges */
-  const [selection, setSelection] = useState<{ anchor: number; picks: Set<number> } | null>(null);
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [query, setQuery] = useState("");
-  const [caseSensitive, setCaseSensitive] = useState(false);
-  const [regexMode, setRegexMode] = useState(false);
-  /** live filter: the view shows only matching lines, updated per batch */
-  const [filterMode, setFilterMode] = useState(false);
+  const [showTime, setShowTime] = useState(() => localStorage.getItem(`log:time:${sourceId}`) === "1");
   /** level quick-filter chips (Err / Warn); empty = all levels */
   const [levelFilter, setLevelFilter] = useState<ReadonlySet<LogLevel>>(new Set());
-  /** search hits as line seqs — ring indexes shift on eviction, seqs don't */
-  const [matches, setMatches] = useState<number[]>([]);
-  const [matchIdx, setMatchIdx] = useState(0);
-  const [flashSeq, setFlashSeq] = useState<number | null>(null);
   const [stdinValue, setStdinValue] = useState("");
   const [capValue, setCapValue] = useState("");
-  const [expandedSeqs, setExpandedSeqs] = useState<Set<number>>(new Set());
-  const searchInputRef = useRef<HTMLInputElement>(null);
-  /** seq of the first visible row. the wrapped virtualizer drops its size cache while
-   * the tab is inactive, so a pixel offset no longer maps to the same line on return —
-   * and a plain index drifts too, because a live source keeps evicting from the ring */
-  const savedSeq = useRef(-1);
-
-  const isCollapsed = (l: LogLine) =>
-    l.raw.length > COLLAPSE_LEN && isJsonLike(l.raw) && !expandedSeqs.has(l.seq);
 
   // per-source retained-line budget — applied to the ring on mount, persisted on commit
   useEffect(() => {
@@ -289,6 +82,60 @@ export function LogView({ sourceId, active }: Props) {
     setCapValue(fmtCapValue(ring.capacity));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sourceId]);
+
+  useEffect(() => {
+    localStorage.setItem(`log:wrap:${sourceId}`, wrap ? "1" : "0");
+  }, [sourceId, wrap]);
+  useEffect(() => {
+    localStorage.setItem(`log:syntax:${sourceId}`, syntax ? "1" : "0");
+  }, [sourceId, syntax]);
+  useEffect(() => {
+    localStorage.setItem(`log:time:${sourceId}`, showTime ? "1" : "0");
+  }, [sourceId, showTime]);
+
+  // ── engine wiring ───────────────────────────────────────────────────────
+  // search needs the viewport's jump and the viewport needs the search's filter
+  // query — break the cycle with a ref the stable wrapper reads through
+  const jumpToAddrRef = useRef<(seq: number) => boolean>(() => false);
+  const jumpTo = useCallback((seq: number) => void jumpToAddrRef.current(seq), []);
+  const search = useLogSearch(model, { active, version, jumpTo });
+
+  // sync BEFORE the viewport reads model.length for this render pass
+  model.sync({
+    query: search.filterQ,
+    caseSensitive: search.caseSensitive,
+    regex: search.regexMode,
+    levels: levelFilter,
+  });
+
+  const viewport = useLogViewport(model, {
+    active,
+    wrap,
+    rowH,
+    uiFontSize,
+    version,
+    reservedPx: showTime ? Math.round(uiFontSize * 0.62 * 8) + 8 : 0,
+  });
+  jumpToAddrRef.current = viewport.jumpToAddr;
+
+  const publishLine = useCallback(
+    (l: LogLine | null) =>
+      setInspectLine(
+        l ? { sourceId, seq: l.seq, raw: l.raw, stream: l.stream, level: l.level, traceId: l.traceId } : null,
+      ),
+    [setInspectLine, sourceId],
+  );
+  const publish = useCallback(
+    (l: LogLine | null) => publishLine(l),
+    [publishLine],
+  );
+  const selection = useLogSelection<number>(model, publish);
+
+  const { isCollapsed, toggleExpand } = useJsonCollapse<number>(model, search.matches);
+
+  const isCmd = def?.kind === "cmd";
+  const live = rt.status === "live";
+  const exited = isCmd && rt.status === "idle" && rt.exitCode !== undefined && rt.exitCode !== null;
 
   const commitCap = useCallback(
     (text: string) => {
@@ -307,316 +154,14 @@ export function LogView({ sourceId, active }: Props) {
     // captured errors (index + archive) survive by design — only the raw buffer resets
     ring.clear();
     insightIndexFor(sourceId).clear();
-    liveFilterRef.current.reset();
-    setSelection(null);
-    setMatches([]);
+    model.resetFilter();
+    selection.clearSelection();
+    search.clearMatches();
     useApp.getState().onBufferCleared(sourceId);
-  }, [ring, sourceId]);
-
-  // incremental live filter — each batch scans only the new lines
-  const filterQ = searchOpen && filterMode ? query.trim() : "";
-  const filterActive = !!filterQ || levelFilter.size > 0;
-  const liveFilterRef = useRef(new LiveFilter());
-  const viewIdx = useMemo(
-    () =>
-      filterActive
-        ? liveFilterRef.current.update(ring, { query: filterQ, caseSensitive, regex: regexMode, levels: levelFilter })
-        : null,
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [filterActive, filterQ, caseSensitive, regexMode, levelFilter, version, ring],
-  );
-  const viewLen = viewIdx ? viewIdx.length : ring.length;
-  const lineAt = (i: number) => ring.at(viewIdx ? viewIdx[i] : i);
+  }, [ring, sourceId, model, selection.clearSelection, search.clearMatches]);
 
-  const wrappedVirtualizer = useVirtualizer({
-    count: viewLen,
-    getScrollElement: () => scrollRef.current,
-    estimateSize: (index) => estimateLogRowHeight(lineAt(index)?.raw ?? "", viewportWidth, uiFontSize),
-    getItemKey: (index) => lineAt(index)?.seq ?? index,
-    overscan: 12,
-    enabled: wrap && active,
-    useFlushSync: false,
-  });
-
-  /** spacer height in px, mirrored from render values — the follow/scroll hot paths
-   * read this instead of el.scrollHeight, which forces a synchronous layout */
-  const totalPxRef = useRef(0);
-  totalPxRef.current = wrap ? wrappedVirtualizer.getTotalSize() : viewLen * rowH;
-
-  /** at most one scrollTop write per frame: batches land at 30Hz and every write
-   * invalidates layout, so unbatched sticks force layout once per batch AND per
-   * scroll event — the main source of live-follow jank */
-  const stickRafRef = useRef(0);
-  const scheduleStick = useCallback(() => {
-    if (stickRafRef.current) return;
-    stickRafRef.current = requestAnimationFrame(() => {
-      stickRafRef.current = 0;
-      const el = scrollRef.current;
-      if (!el || !followRef.current) return;
-      el.scrollTop = totalPxRef.current;
-    });
-  }, []);
-  useEffect(() => () => cancelAnimationFrame(stickRafRef.current), []);
-
-  const isCmd = def?.kind === "cmd";
-  const live = rt.status === "live";
-  const exited = isCmd && rt.status === "idle" && rt.exitCode !== undefined && rt.exitCode !== null;
-
-  useEffect(() => {
-    localStorage.setItem(`log:wrap:${sourceId}`, wrap ? "1" : "0");
-  }, [sourceId, wrap]);
-
-  useEffect(() => {
-    localStorage.setItem(`log:syntax:${sourceId}`, syntax ? "1" : "0");
-  }, [sourceId, syntax]);
-
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    // width 0 means the tab is hidden, not a 0px viewport — keeping the last real
-    // width matters: row heights are estimated from it, and a 1px viewport would
-    // bake absurd estimates into the virtualizer's cache on the next re-enable
-    // the dock collapse animates the center column, so this observer fires every
-    // frame for ~180ms — debounce the width STATE (it only feeds wrap-row height
-    // estimates) so the transition doesn't drag a React render per frame behind it.
-    // the height ref updates inline: writing a ref schedules nothing.
-    let widthTimer = 0;
-    const observer = new ResizeObserver(([entry]) => {
-      const w = entry.contentRect.width;
-      if (entry.contentRect.height > 0) viewportHRef.current = entry.contentRect.height;
-      if (w > 0) {
-        window.clearTimeout(widthTimer);
-        widthTimer = window.setTimeout(() => setViewportWidth(w), 120);
-      }
-    });
-    observer.observe(el);
-    if (el.clientWidth > 0) setViewportWidth(el.clientWidth);
-    if (el.clientHeight > 0) viewportHRef.current = el.clientHeight;
-    return () => {
-      window.clearTimeout(widthTimer);
-      observer.disconnect();
-    };
-  }, [active]);
-
-  // ── virtual window ──────────────────────────────────────────────────────
-  const computeRange = useCallback(() => {
-    const el = scrollRef.current;
-    if (!el || wrap) return;
-    const top = el.scrollTop;
-    const first = Math.max(0, Math.floor(top / rowH) - OVERSCAN);
-    const last = Math.min(
-      viewLen,
-      Math.ceil((top + viewportHRef.current) / rowH) + OVERSCAN,
-    );
-    setRange((r) => (r[0] === first && r[1] === last ? r : [first, last]));
-  }, [viewLen, rowH, wrap]);
-
-  // restore scroll position when returning to a tab that was hidden via display:none.
-  // no save on !active: this effect runs after the tab is already display:none, where
-  // scrollTop reads 0 — onScroll keeps savedSeq current while the tab is visible
-  const wasActive = useRef(active);
-  useEffect(() => {
-    if (!active) {
-      wasActive.current = false;
-      return;
-    }
-    // only on the hidden → visible flip: this effect's deps also change on every
-    // batch, and re-anchoring mid-scroll would fight the user
-    if (wasActive.current) return;
-    wasActive.current = true;
-    const el = scrollRef.current;
-    if (!el || followRef.current) return;
-    // snapshot NOW: re-enabling the virtualizer runs its _willUpdate layout effect,
-    // which re-attaches the scroll element and forces scrollTop back to its own
-    // (nulled) offset — the resulting scroll event lands before the rAF below and
-    // would otherwise overwrite the ref
-    const targetSeq = savedSeq.current;
-    // give the wrapped virtualizer one frame to remeasure before restoring
-    const raf = requestAnimationFrame(() => {
-      if (followRef.current) return;
-      const ringIdx = ring.indexOfSeq(targetSeq);
-      // evicted or filtered out while hidden: the top of the buffer is now the
-      // closest surviving position, which is where we already are
-      const i = ringIdx < 0 ? -1 : viewIdx ? viewIdx.indexOf(ringIdx) : ringIdx;
-      if (i >= 0) {
-        if (wrap) wrappedVirtualizer.scrollToIndex(i, { align: "start" });
-        else el.scrollTop = i * rowH;
-      }
-      computeRange();
-    });
-    return () => cancelAnimationFrame(raf);
-  }, [active, computeRange, ring, rowH, viewIdx, wrap, wrappedVirtualizer]);
-
-  // new batch: stick to bottom when following, always refresh the window.
-  // the stick is rAF-coalesced — a raw scrollHeight read + scrollTop write per
-  // batch forces one full layout pass per batch on top of the frame's own
-  useEffect(() => {
-    if (followRef.current) scheduleStick();
-    computeRange();
-  }, [version, computeRange, rowH, wrap, ring, wrappedVirtualizer, scheduleStick]);
-
-  /** last seen scrollTop — breaking follow needs the scroll DIRECTION, not position:
-   * batches land faster than scroll events, so "not at bottom" alone is just lag */
-  const lastTopRef = useRef(0);
-  const onScroll = useCallback(() => {
-    const el = scrollRef.current;
-    // hiding the tab collapses the spacer to 0px, which clamps scrollTop to 0 and
-    // fires a scroll event — saving it here would wipe the position we want back
-    if (!el || !active) return;
-    const top = el.scrollTop;
-    // range is null while the virtualizer settles after a re-enable — saving then
-    // would anchor the restore to the top of the buffer
-    const firstVisible = wrap ? wrappedVirtualizer.range?.startIndex : Math.floor(top / rowH);
-    if (firstVisible !== undefined) {
-      savedSeq.current = ring.at(viewIdx ? viewIdx[firstVisible] : firstVisible)?.seq ?? -1;
-    }
-    const scrolledUp = top < lastTopRef.current - 1;
-    lastTopRef.current = top;
-    const atBottom = top + viewportHRef.current >= totalPxRef.current - rowH;
-    if (followRef.current) {
-      if (scrolledUp && !atBottom) {
-        // user scrolled up — never fight them
-        setFollow(false);
-        pausedAtRef.current = ring.totalSeen;
-      } else if (!atBottom) {
-        // layout grew under us (new batch, wrap re-measure) — re-stick next frame
-        scheduleStick();
-      }
-    } else if (atBottom) {
-      setFollow(true);
-    }
-    if (!wrap) computeRange();
-  }, [active, computeRange, ring, rowH, viewIdx, wrap, wrappedVirtualizer, scheduleStick]);
-
-  const resumeFollow = useCallback(() => {
-    setFollow(true);
-    const el = scrollRef.current;
-    if (el) el.scrollTop = totalPxRef.current;
-  }, []);
-
-  useEffect(() => {
-    if (!wrap) {
-      requestAnimationFrame(computeRange);
-      return;
-    }
-    // no manual virtualizer.measure() here: the virtualizer's own ResizeObserver
-    // already re-measured the rendered rows when the viewport reflowed; clearing
-    // its cache afterwards would strand every row on stale width estimates (gaps)
-    if (followRef.current && ring.length) {
-      requestAnimationFrame(() => {
-        const el = scrollRef.current;
-        if (el) el.scrollTop = totalPxRef.current;
-      });
-    }
-  }, [wrap, viewportWidth, uiFontSize, computeRange, ring]);
-
-  // ⌘↵ from the app shell toggles follow on the active tab
-  const runNonce = useApp((s) => s.runNonce);
-  const runSeen = useRef(runNonce);
-  useEffect(() => {
-    if (runNonce !== runSeen.current) {
-      runSeen.current = runNonce;
-      if (active) (follow ? setFollow(false) : resumeFollow());
-    }
-  }, [runNonce, active, follow, resumeFollow]);
-
-  // ── search ──────────────────────────────────────────────────────────────
-  const runSearch = useCallback(
-    (q: string) => {
-      const idxs = ring.search(q.trim(), { caseSensitive, regex: regexMode });
-      const seqs: number[] = [];
-      for (const i of idxs) {
-        const line = ring.at(i);
-        if (line) seqs.push(line.seq);
-      }
-      setMatches(seqs);
-      setMatchIdx(0);
-      if (seqs.length) jumpToSeq(seqs[0]);
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    },
-    [ring, version, caseSensitive, regexMode],
-  );
-
-  const jumpToIndex = (i: number) => {
-    const el = scrollRef.current;
-    const line = lineAt(i); // view index — identical to ring index outside filter mode
-    if (!el || !line) return;
-    setFollow(false);
-    pausedAtRef.current = ring.totalSeen;
-    if (wrap) wrappedVirtualizer.scrollToIndex(i, { align: "center" });
-    else el.scrollTop = Math.max(0, i * rowH - viewportHRef.current / 2);
-    setFlashSeq(line.seq);
-    window.setTimeout(() => setFlashSeq((s) => (s === line.seq ? null : s)), 900);
-    if (!wrap) computeRange();
-  };
-
-  /** seq → current view index → scroll; evicted or filtered-out seqs are skipped */
-  const jumpToSeq = (seq: number) => {
-    const ringIdx = ring.indexOfSeq(seq);
-    if (ringIdx < 0) return;
-    const i = viewIdx ? viewIdx.indexOf(ringIdx) : ringIdx;
-    if (i >= 0) jumpToIndex(i);
-  };
-
-  const jumpMatch = (dir: 1 | -1) => {
-    if (!matches.length) return;
-    const next = (matchIdx + dir + matches.length) % matches.length;
-    setMatchIdx(next);
-    jumpToSeq(matches[next]);
-  };
-
-  // eviction while search is open: drop seqs that left the ring so ↵ never lands wrong
-  useEffect(() => {
-    const start = ring.startSeq;
-    if (!matches.length || matches[0] >= start) return;
-    const next = matches.filter((s) => s >= start);
-    setMatches(next);
-    setMatchIdx((i) => Math.min(i, Math.max(0, next.length - 1)));
-  }, [version, matches, ring]);
-
-  // debounce re-search while typing; filter mode owns the view instead
-  useEffect(() => {
-    if (!searchOpen) return;
-    if (filterMode) {
-      setMatches([]);
-      return;
-    }
-    const t = window.setTimeout(() => runSearch(query), 150);
-    return () => window.clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, searchOpen, caseSensitive, regexMode, filterMode]);
-
-  // auto-expand long JSON lines that are search matches so highlights are visible
-  useEffect(() => {
-    if (!matches.length) return;
-    setExpandedSeqs((prev) => {
-      const next = new Set(prev);
-      let changed = false;
-      for (const seq of matches) {
-        if (!next.has(seq)) {
-          const line = ring.at(ring.indexOfSeq(seq));
-          if (line && line.raw.length > COLLAPSE_LEN && isJsonLike(line.raw)) {
-            next.add(seq);
-            changed = true;
-          }
-        }
-      }
-      return changed ? next : prev;
-    });
-  }, [matches, ring]);
-
-  // error dock clicked a group — scroll to the line and flash it
-  const jumpTarget = useApp((s) => s.jumpTarget);
-  const jumpSeen = useRef(0);
-  useEffect(() => {
-    if (!active || !jumpTarget || jumpTarget.nonce === jumpSeen.current) return;
-    if (jumpTarget.sourceId !== sourceId) return;
-    jumpSeen.current = jumpTarget.nonce;
-    jumpToSeq(jumpTarget.seq);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [jumpTarget, active, sourceId]);
-
-  // ── copy & keys ─────────────────────────────────────────────────────────
+  // ── copy & export ───────────────────────────────────────────────────────
   const copyText = useCallback(
     async (text: string, body: string) => {
       try {
@@ -630,16 +175,11 @@ export function LogView({ sourceId, active }: Props) {
   );
 
   const copySelection = useCallback(async () => {
-    if (!selection?.picks.size) return;
-    const seqs = [...selection.picks].sort((a, b) => a - b);
-    const selected: LogLine[] = [];
-    for (const seq of seqs) {
-      const idx = ring.indexOfSeq(seq);
-      if (idx >= 0) selected.push(...ring.slice(idx, idx + 1));
-    }
+    const selected = selection.collectSelected().map((p) => p.line);
     if (!selected.length) return;
     await copyText(copyTextForLines(selected), `${selected.length} selected line${selected.length === 1 ? "" : "s"}.`);
-  }, [selection, ring, copyText]);
+  }, [selection, copyText]);
+  const copySelectionCb = useCallback(() => void copySelection(), [copySelection]);
 
   const exportBuffer = useCallback(async () => {
     if (!ring.length) return;
@@ -653,36 +193,22 @@ export function LogView({ sourceId, active }: Props) {
     }
   }, [ring, def?.name, showToast]);
 
-  const publishLine = useCallback(
-    (l: LogLine | null) =>
-      setInspectLine(
-        l ? { sourceId, seq: l.seq, raw: l.raw, stream: l.stream, level: l.level, traceId: l.traceId } : null,
-      ),
-    [setInspectLine, sourceId],
-  );
-
   // row callbacks must be identity-stable — a fresh closure would defeat LogRow's memo
-  const onInspect = useCallback(
-    (l: LogLine) => {
-      setSelection({ anchor: l.seq, picks: new Set([l.seq]) });
-      publishLine(l);
-    },
-    [publishLine],
+  const onRowClick = useCallback(
+    (l: LogLine, addr: unknown, e: React.MouseEvent) => selection.onRowClick(l, addr as number, e),
+    [selection.onRowClick],
   );
-
+  const onInspect = useCallback(
+    (l: LogLine, addr: unknown) => selection.selectSingle(l, addr as number),
+    [selection.selectSingle],
+  );
   const onCopyRaw = useCallback((raw: string) => void copyText(raw, "Complete raw line."), [copyText]);
-
   const onToggleExpand = useCallback(
-    (seq: number) => {
-      setExpandedSeqs((prev) => {
-        const next = new Set(prev);
-        if (next.has(seq)) next.delete(seq);
-        else next.add(seq);
-        return next;
-      });
-      if (wrap) requestAnimationFrame(() => wrappedVirtualizer.measure());
+    (l: LogLine, addr: unknown) => {
+      toggleExpand(l, addr as number);
+      if (wrap) requestAnimationFrame(() => viewport.virtualizer.measure());
     },
-    [wrap, wrappedVirtualizer],
+    [toggleExpand, wrap, viewport.virtualizer],
   );
 
   /** tok-path click → resolve against the source cwd and open in the editor.
@@ -697,101 +223,44 @@ export function LogView({ sourceId, active }: Props) {
   };
   const openLoc = useCallback((loc: string) => openLocImpl.current(loc), []);
 
-  useEffect(() => {
-    if (!active) return;
-    const onKey = (e: KeyboardEvent) => {
-      const mod = e.metaKey || e.ctrlKey;
-      const inInput = (e.target as HTMLElement)?.tagName === "INPUT";
-      if (mod && e.key.toLowerCase() === "f" && dockTab !== "errors") {
-        e.preventDefault();
-        setSearchOpen(true);
-        requestAnimationFrame(() => searchInputRef.current?.select());
-      }
-      // highlighted text wins over line picks — let the native copy handle it
-      if (mod && e.key.toLowerCase() === "c" && selection && !inInput && !window.getSelection()?.toString()) {
-        e.preventDefault();
-        void copySelection();
-      }
-      // literal Ctrl+L (not ⌘L) clears the buffer, terminal-style; errors are kept
-      if (e.ctrlKey && !e.metaKey && e.key.toLowerCase() === "l" && !inInput) {
-        e.preventDefault();
-        clearBuffer();
-      }
-      if (e.key === "Escape" && !inInput) {
-        if (searchOpen) setSearchOpen(false);
-        else if (selection) {
-          setSelection(null);
-          publishLine(null);
-        }
-      }
-      // F8 / ⇧F8 step to the next/previous error line (err level or trace head)
-      if (!inInput && e.key === "F8" && viewLen > 0) {
-        e.preventDefault();
-        const dir: 1 | -1 = e.shiftKey ? -1 : 1;
-        const curRing = selection ? ring.indexOfSeq(selection.anchor) : -1;
-        const curView = viewIdx ? (curRing >= 0 ? viewIdx.indexOf(curRing) : -1) : curRing;
-        let i = curView < 0 ? (dir === 1 ? 0 : viewLen - 1) : curView + dir;
-        for (; i >= 0 && i < viewLen; i += dir) {
-          const line = lineAt(i);
-          if (line && (line.level === "err" || line.traceStart)) {
-            setSelection({ anchor: line.seq, picks: new Set([line.seq]) });
-            publishLine(line);
-            jumpToIndex(i);
-            break;
-          }
-        }
-      }
-      // ↑/↓ walk the (possibly filtered) view; the dock follows the selection
-      if (!inInput && !mod && !e.altKey && (e.key === "ArrowDown" || e.key === "ArrowUp") && viewLen > 0) {
-        e.preventDefault();
-        const dir = e.key === "ArrowDown" ? 1 : -1;
-        const curRing = selection ? ring.indexOfSeq(selection.anchor) : -1;
-        const curView = viewIdx ? (curRing >= 0 ? viewIdx.indexOf(curRing) : -1) : curRing;
-        const i = curView < 0 ? (dir === 1 ? 0 : viewLen - 1) : Math.max(0, Math.min(viewLen - 1, curView + dir));
-        const line = lineAt(i);
-        if (!line) return;
-        setFollow(false);
-        pausedAtRef.current = ring.totalSeen;
-        setSelection({ anchor: line.seq, picks: new Set([line.seq]) });
-        publishLine(line);
-        const el = scrollRef.current;
-        if (wrap) wrappedVirtualizer.scrollToIndex(i);
-        else if (el) {
-          const top = i * rowH;
-          const vh = viewportHRef.current;
-          if (top < el.scrollTop) el.scrollTop = top;
-          else if (top + rowH > el.scrollTop + vh) el.scrollTop = top + rowH - vh;
-          computeRange();
-        }
-      }
-    };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active, selection, copySelection, searchOpen, clearBuffer, publishLine, viewIdx, viewLen, wrap, rowH, computeRange, dockTab]);
+  const anchorViewIndex = useCallback(
+    () => (selection.selection ? model.indexOf(selection.selection.anchor) : -1),
+    [selection.selection, model],
+  );
+  const selectAt = useCallback(
+    (line: LogLine, addr: number) => selection.selectSingle(line, addr),
+    [selection.selectSingle],
+  );
 
-  const onRowClick = useCallback((l: LogLine, e: React.MouseEvent) => {
-    // dragging to select text also fires click on mouseup — keep the selection
-    if (window.getSelection()?.toString()) return;
-    if (e.shiftKey && selection) {
-      // extending a copy range must not re-route the dock
-      const [lo, hi] = [Math.min(selection.anchor, l.seq), Math.max(selection.anchor, l.seq)];
-      const picks = new Set<number>();
-      for (let s = lo; s <= hi; s++) picks.add(s);
-      setSelection({ anchor: selection.anchor, picks });
-    } else if ((e.metaKey || e.ctrlKey) && selection) {
-      // ⌘click toggles a line in/out without touching the rest — and without re-routing
-      const picks = new Set(selection.picks);
-      if (picks.has(l.seq)) picks.delete(l.seq);
-      else picks.add(l.seq);
-      setSelection(picks.size ? { anchor: l.seq, picks } : null);
-      if (!picks.size) publishLine(null);
-    } else {
-      const deselect = selection?.picks.size === 1 && selection.picks.has(l.seq);
-      setSelection(deselect ? null : { anchor: l.seq, picks: new Set([l.seq]) });
-      publishLine(deselect ? null : l);
-    }
-  }, [selection, publishLine]);
+  useLogKeys<number>({
+    active,
+    yieldSearchToDock: dockTab === "errors",
+    searchOpen: search.searchOpen,
+    openSearch: search.openSearch,
+    closeSearch: search.closeSearch,
+    hasSelection: !!selection.selection,
+    clearSelection: selection.clearSelection,
+    copySelection: copySelectionCb,
+    clearBuffer,
+    model,
+    anchorViewIndex,
+    selectAt,
+    jumpToIndex: viewport.jumpToIndex,
+    ensureIndexVisible: viewport.ensureIndexVisible,
+    pauseFollow: viewport.pauseFollow,
+  });
+
+  // error dock clicked a group — scroll to the line and flash it
+  const jumpTarget = useApp((s) => s.jumpTarget);
+  const jumpSeen = useRef(0);
+  useEffect(() => {
+    if (!active || !jumpTarget || jumpTarget.nonce === jumpSeen.current) return;
+    // combined-scoped targets belong to the collection tab, not this view
+    if (jumpTarget.sourceId !== sourceId || jumpTarget.combinedId) return;
+    jumpSeen.current = jumpTarget.nonce;
+    viewport.jumpToAddr(jumpTarget.seq);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jumpTarget, active, sourceId]);
 
   // ── render ──────────────────────────────────────────────────────────────
   if (!def) {
@@ -804,25 +273,48 @@ export function LogView({ sourceId, active }: Props) {
     );
   }
 
-  const total = viewLen;
-  const lines = viewIdx
-    ? viewIdx.slice(range[0], range[1]).map((i) => ring.at(i)).filter((l): l is LogLine => !!l)
-    : ring.slice(range[0], range[1]);
-  const picks = selection?.picks;
-  const selectedCount = picks?.size ?? 0;
-  const qRaw = searchOpen ? query.trim() : "";
-  const wrappedItems = wrap ? wrappedVirtualizer.getVirtualItems() : [];
-  const currentMatchSeq = matches.length ? matches[matchIdx] : -1;
+  const total = model.length;
+  const filtered = model.filtered;
+  const picks = selection.picks;
+  const selectedCount = selection.selectedCount;
+  const { qRaw, caseSensitive, regexMode, matches, matchIdx, regexInvalid, currentMatchKey } = search;
 
-  // matching itself lives in LogRow (memoized); the parent only validates for the count badge
-  let regexInvalid = false;
-  if (qRaw && regexMode) {
-    try {
-      new RegExp(qRaw);
-    } catch {
-      regexInvalid = true;
-    }
-  }
+  const countText = regexInvalid
+    ? "bad regex"
+    : filtered
+      ? `${fmtInt(total)} line${total === 1 ? "" : "s"}`
+      : matches.length
+        ? `${matchIdx + 1}/${matches.length >= 5_000 ? "5 000+" : matches.length}`
+        : search.query
+          ? "0"
+          : "";
+
+  const renderRow = (line: LogLine, idx: number, start: number, measure?: (n: HTMLDivElement | null) => void) => (
+    <LogRow
+      key={line.seq}
+      line={line}
+      addr={line.seq}
+      idx={idx}
+      wrap={!!measure}
+      start={start}
+      rowH={rowH}
+      syntax={syntax}
+      selected={!!picks?.has(String(line.seq))}
+      current={currentMatchKey === String(line.seq)}
+      flash={viewport.flashKey === String(line.seq)}
+      collapsed={isCollapsed(line, line.seq)}
+      qRaw={qRaw}
+      caseSensitive={caseSensitive}
+      regexMode={regexMode}
+      time={showTime && line.at !== undefined ? fmtClock(line.at) : showTime ? "" : undefined}
+      measure={measure}
+      onRowClick={onRowClick}
+      onToggleExpand={onToggleExpand}
+      onInspect={onInspect}
+      onCopyRaw={onCopyRaw}
+      openLoc={openLoc}
+    />
+  );
 
   return (
     <section className={`content log-view ${active ? "active" : ""}`}>
@@ -876,11 +368,11 @@ export function LogView({ sourceId, active }: Props) {
           )}
           <ToolButton
             iconOnly
-            title={follow ? "Pause follow (⌘↵)" : "Resume follow (⌘↵)"}
+            title={viewport.follow ? "Pause follow (⌘↵)" : "Resume follow (⌘↵)"}
             aria-label="Toggle follow"
-            aria-pressed={follow}
-            className={`log-view-toggle ${follow ? "active" : ""}`}
-            onClick={() => (follow ? setFollow(false) : resumeFollow())}
+            aria-pressed={viewport.follow}
+            className={`log-view-toggle ${viewport.follow ? "active" : ""}`}
+            onClick={() => (viewport.follow ? viewport.pauseFollow() : viewport.resumeFollow())}
           >
             <Icon name="arrow-down" />
           </ToolButton>
@@ -916,6 +408,16 @@ export function LogView({ sourceId, active }: Props) {
           ))}
           <ToolButton
             iconOnly
+            title={showTime ? "Hide receive times" : "Show receive time of every line"}
+            aria-label="Toggle timestamps"
+            aria-pressed={showTime}
+            className={`log-view-toggle ${showTime ? "active" : ""}`}
+            onClick={() => setShowTime((value) => !value)}
+          >
+            <Icon name="clock" />
+          </ToolButton>
+          <ToolButton
+            iconOnly
             title={syntax ? "Disable syntax colors" : "Color strings, numbers, keys and brackets"}
             aria-label="Toggle syntax colors"
             aria-pressed={syntax}
@@ -928,10 +430,7 @@ export function LogView({ sourceId, active }: Props) {
             iconOnly
             title="Search (⌘F)"
             aria-label="Search"
-            onClick={() => {
-              setSearchOpen(true);
-              requestAnimationFrame(() => searchInputRef.current?.select());
-            }}
+            onClick={search.openSearch}
           >
             <Icon name="search" />
           </ToolButton>
@@ -962,84 +461,32 @@ export function LogView({ sourceId, active }: Props) {
       </div>
 
       <AnimatePresence initial={false}>
-      {searchOpen && (
-        <motion.div
-          className={`log-search ${regexInvalid ? "invalid" : ""}`}
-          initial={{ opacity: 0, y: -6 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -6 }}
-          transition={{ duration: 0.12, ease: [0.05, 0.7, 0.1, 1] }}
-        >
-          <Icon name="search" size={13} />
-          <input
-            ref={searchInputRef}
-            value={query}
+        {search.searchOpen && (
+          <LogSearchBar
+            inputRef={search.searchInputRef}
+            query={search.query}
+            onQueryChange={search.setQuery}
             placeholder={
-              filterMode
+              search.filterMode
                 ? "Filter — only matching lines, live…"
                 : regexMode
                   ? "Find in buffer (regex)…"
                   : "Find in buffer…"
             }
-            spellCheck={false}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") jumpMatch(e.shiftKey ? -1 : 1);
-              if (e.key === "Escape") setSearchOpen(false);
-            }}
+            invalid={regexInvalid}
+            countText={countText}
+            filterMode={search.filterMode}
+            onToggleFilter={() => search.setFilterMode((v) => !v)}
+            caseSensitive={caseSensitive}
+            onToggleCase={() => search.setCaseSensitive((v) => !v)}
+            regexMode={regexMode}
+            onToggleRegex={() => search.setRegexMode((v) => !v)}
+            navDisabled={search.filterMode}
+            onPrev={() => search.jumpMatch(-1)}
+            onNext={() => search.jumpMatch(1)}
+            onClose={search.closeSearch}
           />
-          <span className="log-search-count" title={regexInvalid ? "Invalid regular expression" : undefined}>
-            {regexInvalid
-              ? "bad regex"
-              : viewIdx
-                ? `${fmtInt(viewLen)} line${viewLen === 1 ? "" : "s"}`
-                : matches.length
-                  ? `${matchIdx + 1}/${matches.length >= 5_000 ? "5 000+" : matches.length}`
-                  : query
-                    ? "0"
-                    : ""}
-          </span>
-          <ToolButton
-            iconOnly
-            title="Live filter — show only matching lines, including new output"
-            aria-label="Live filter"
-            aria-pressed={filterMode}
-            className={`log-search-case ${filterMode ? "active" : ""}`}
-            onClick={() => setFilterMode((v) => !v)}
-          >
-            <Icon name="filter" size={13} />
-          </ToolButton>
-          <ToolButton
-            iconOnly
-            title="Match case"
-            aria-label="Match case"
-            aria-pressed={caseSensitive}
-            className={`log-search-case ${caseSensitive ? "active" : ""}`}
-            onClick={() => setCaseSensitive((v) => !v)}
-          >
-            Aa
-          </ToolButton>
-          <ToolButton
-            iconOnly
-            title="Regular expression"
-            aria-label="Regular expression"
-            aria-pressed={regexMode}
-            className={`log-search-case ${regexMode ? "active" : ""}`}
-            onClick={() => setRegexMode((v) => !v)}
-          >
-            .*
-          </ToolButton>
-          <ToolButton iconOnly disabled={filterMode} title="Previous match (⇧↵)" aria-label="Previous match" onClick={() => jumpMatch(-1)}>
-            <Icon name="arrow-left" />
-          </ToolButton>
-          <ToolButton iconOnly disabled={filterMode} title="Next match (↵)" aria-label="Next match" onClick={() => jumpMatch(1)}>
-            <Icon name="arrow-right" />
-          </ToolButton>
-          <ToolButton iconOnly title="Close (Esc)" aria-label="Close search" onClick={() => setSearchOpen(false)}>
-            <Icon name="x" />
-          </ToolButton>
-        </motion.div>
-      )}
+        )}
       </AnimatePresence>
 
       <AnimatePresence initial={false}>
@@ -1078,73 +525,29 @@ export function LogView({ sourceId, active }: Props) {
       )}
       </AnimatePresence>
 
-      <div className="log-scroll" ref={scrollRef} onScroll={onScroll}>
-        <div
-          className={`log-spacer ${wrap ? "wrapped" : ""}`}
-          style={{ height: wrap ? wrappedVirtualizer.getTotalSize() : total * rowH }}
-        >
+      <div className="log-scroll" ref={viewport.scrollRef} onScroll={viewport.onScroll}>
+        <div className={`log-spacer ${wrap ? "wrapped" : ""}`} style={{ height: viewport.totalPx }}>
           {wrap
-            ? wrappedItems.map((item) => {
-                const line = lineAt(item.index);
-                return line ? (
-                  <LogRow
-                    key={line.seq}
-                    line={line}
-                    idx={item.index}
-                    wrap
-                    start={item.start}
-                    rowH={rowH}
-                    syntax={syntax}
-                    selected={!!picks?.has(line.seq)}
-                    current={line.seq === currentMatchSeq}
-                    flash={flashSeq === line.seq}
-                    collapsed={isCollapsed(line)}
-                    qRaw={qRaw}
-                    caseSensitive={caseSensitive}
-                    regexMode={regexMode}
-                    measure={wrappedVirtualizer.measureElement}
-                    onRowClick={onRowClick}
-                    onToggleExpand={onToggleExpand}
-                    onInspect={onInspect}
-                    onCopyRaw={onCopyRaw}
-                    openLoc={openLoc}
-                  />
-                ) : null;
+            ? viewport.wrappedItems.map((item) => {
+                const line = model.at(item.index);
+                return line ? renderRow(line, item.index, item.start, viewport.virtualizer.measureElement) : null;
               })
-            : lines.map((line, offset) => {
-                const idx = range[0] + offset;
-                return (
-                  <LogRow
-                    key={line.seq}
-                    line={line}
-                    idx={idx}
-                    wrap={false}
-                    start={idx * rowH}
-                    rowH={rowH}
-                    syntax={syntax}
-                    selected={!!picks?.has(line.seq)}
-                    current={line.seq === currentMatchSeq}
-                    flash={flashSeq === line.seq}
-                    collapsed={isCollapsed(line)}
-                    qRaw={qRaw}
-                    caseSensitive={caseSensitive}
-                    regexMode={regexMode}
-                    onRowClick={onRowClick}
-                    onToggleExpand={onToggleExpand}
-                    onInspect={onInspect}
-                    onCopyRaw={onCopyRaw}
-                    openLoc={openLoc}
-                  />
-                );
-              })}
+            : (() => {
+                const out = [];
+                for (let i = viewport.range[0]; i < viewport.range[1]; i++) {
+                  const line = model.at(i);
+                  if (line) out.push(renderRow(line, i, i * rowH));
+                }
+                return out;
+              })()}
         </div>
         {/* startup only: streaming batches clear it as soon as the first line lands */}
-        <SectionVeil on={live && total === 0 && !viewIdx} label="Waiting for output…" />
-        {total === 0 && !(live && !viewIdx) && (
+        <SectionVeil on={live && total === 0 && !filtered} label="Waiting for output…" />
+        {total === 0 && !(live && !filtered) && (
           <div className="empty-note" style={{ padding: 24 }}>
-            {viewIdx
-              ? filterQ
-                ? `No lines match “${filterQ}”. New matching output will appear here.`
+            {filtered
+              ? search.filterQ
+                ? `No lines match “${search.filterQ}”. New matching output will appear here.`
                 : "No matching lines yet. New matching output will appear here."
               : isCmd
                 ? "Press Start to run the command."
@@ -1158,7 +561,7 @@ export function LogView({ sourceId, active }: Props) {
       {/* follow paused + new output below → one tap back to the live edge */}
       <div className={`log-new-pill-wrap ${isCmd ? "with-stdin" : ""}`}>
         <AnimatePresence>
-          {active && !follow && ring.totalSeen > pausedAtRef.current && (
+          {active && !viewport.follow && viewport.newCount > 0 && (
             <motion.button
               type="button"
               className="log-new-pill"
@@ -1166,11 +569,11 @@ export function LogView({ sourceId, active }: Props) {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 8, scale: 0.96 }}
               transition={{ type: "spring", stiffness: 420, damping: 28 }}
-              onClick={resumeFollow}
+              onClick={viewport.resumeFollow}
               title="Jump to the newest lines and resume follow (⌘↵)"
             >
               <Icon name="arrow-down" size={13} />
-              <span>{fmtInt(ring.totalSeen - pausedAtRef.current)} new line{ring.totalSeen - pausedAtRef.current === 1 ? "" : "s"}</span>
+              <span>{fmtInt(viewport.newCount)} new line{viewport.newCount === 1 ? "" : "s"}</span>
             </motion.button>
           )}
         </AnimatePresence>

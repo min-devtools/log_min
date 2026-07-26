@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { openFrame } from "../../lib/editor";
-import type { ErrorGroup, ErrorSnapshot } from "../../lib/errors";
+import type { ErrorGroup } from "../../lib/errors";
 import { highlightText } from "../../lib/highlight";
 import { frameLocation } from "../../lib/logPresentation";
 import type { Frame, SourceDef } from "../../lib/types";
@@ -11,21 +11,32 @@ import { ToolButton } from "../../ui/ToolButton";
 
 const fmtTime = (ms: number) => new Date(ms).toLocaleTimeString();
 
+/** one error group + where it came from — the combined dock feeds many sources */
+export interface ErrorEntry {
+  group: ErrorGroup;
+  sourceId: string;
+  source?: SourceDef;
+  /** combined dock: origin tag rendered on the group row */
+  badge?: { name: string; colorVar?: string };
+}
+
+const entryKey = (e: ErrorEntry) => `${e.sourceId}:${e.group.fingerprint}`;
+
 function locationText(group: ErrorGroup, source?: SourceDef): string | null {
   if (!group.topFrame) return null;
   const origin = frameLocation(group.topFrame, source);
   return `${origin.file}:${origin.position}`;
 }
 
-function GroupButton({ group, source, query, expanded, onOpen, onOpenFrame, onCopy }: {
-  group: ErrorGroup;
-  source?: SourceDef;
+function GroupButton({ entry, query, expanded, onOpen, onOpenFrame, onCopy }: {
+  entry: ErrorEntry;
   query: string;
   expanded: boolean;
   onOpen: () => void;
   onOpenFrame: (frame: Frame) => void;
   onCopy: (text: string, label: string) => void;
 }) {
+  const { group, source, badge } = entry;
   const loc = locationText(group, source);
   return (
     <div className={`error-group ${expanded ? "expanded" : ""}`}>
@@ -42,6 +53,12 @@ function GroupButton({ group, source, query, expanded, onOpen, onOpenFrame, onCo
             <span className="error-group-topline">
               <span className="error-group-kind">{group.frames.length ? "trace" : "error"}</span>
               <span className="error-group-count">{group.count}×</span>
+              {badge && (
+                <span className="error-group-src" style={{ color: badge.colorVar }}>
+                  <span className="conn-dot" />
+                  {badge.name}
+                </span>
+              )}
             </span>
             <strong>{highlightText(group.message, query)}</strong>
             <span className="error-group-meta">
@@ -87,13 +104,16 @@ function GroupButton({ group, source, query, expanded, onOpen, onOpenFrame, onCo
   );
 }
 
-/** Right-dock error list: click a group to open its trace tab and expand its stack inline (exclusive). */
-export function ErrorsPanel({ sourceId, source, snapshot, autoExpandFingerprint }: {
-  sourceId?: string;
-  source?: SourceDef;
-  snapshot: ErrorSnapshot;
+/** Right-dock error list: click a group to open its trace tab and expand its stack inline (exclusive).
+ * Single-source docks pass one source's groups; the combined dock passes every member's, tagged. */
+export function ErrorsPanel({ entries, totalOccurrences, clearIds, autoExpandKey }: {
+  /** groups to render, already in display order */
+  entries: ErrorEntry[];
+  totalOccurrences: number;
+  /** sources whose captured errors the trash button clears; empty hides it */
+  clearIds: string[];
   /** an error-trace tab just became active — expand its group without touching manual collapses */
-  autoExpandFingerprint?: string;
+  autoExpandKey?: string;
 }): ReactNode {
   const openErrorTab = useApp((s) => s.openErrorTab);
   const clearErrors = useApp((s) => s.clearErrors);
@@ -126,16 +146,16 @@ export function ErrorsPanel({ sourceId, source, snapshot, autoExpandFingerprint 
 
   // landing on an error's dedicated tab expands its stack here and collapses the rest
   useEffect(() => {
-    if (autoExpandFingerprint) setExpanded(autoExpandFingerprint);
-  }, [autoExpandFingerprint]);
+    if (autoExpandKey) setExpanded(autoExpandKey);
+  }, [autoExpandKey]);
 
   /** one gesture: open (or focus) the error's tab and show its stack, exclusively */
-  const openGroup = (group: ErrorGroup) => {
-    setExpanded(group.fingerprint);
-    if (sourceId) openErrorTab(sourceId, group.fingerprint, group.message);
+  const openGroup = (entry: ErrorEntry) => {
+    setExpanded(entryKey(entry));
+    openErrorTab(entry.sourceId, entry.group.fingerprint, entry.group.message);
   };
 
-  const handleOpenFrame = (frame: Frame) => {
+  const handleOpenFrame = (frame: Frame, source?: SourceDef) => {
     void openFrame(frame, source).then((opened) => {
       if (!opened) showToast("Copied", "Source location copied. Choose an editor in Settings to open it directly.");
     });
@@ -148,7 +168,7 @@ export function ErrorsPanel({ sourceId, source, snapshot, autoExpandFingerprint 
   };
 
   const confirmClear = () => {
-    if (!sourceId) return;
+    if (!clearIds.length) return;
     void openDialog({
       kind: "confirm",
       title: "Clear captured errors?",
@@ -156,17 +176,21 @@ export function ErrorsPanel({ sourceId, source, snapshot, autoExpandFingerprint 
       confirmLabel: "Clear",
       danger: true,
     }).then((ok) => {
-      if (ok !== null) clearErrors(sourceId);
+      if (ok !== null) clearIds.forEach((id) => clearErrors(id));
     });
   };
 
   const q = query.trim().toLowerCase();
-  const groups = q
-    ? snapshot.groups.filter((group) => {
-        const loc = locationText(group, source);
-        return group.message.toLowerCase().includes(q) || (loc?.toLowerCase().includes(q) ?? false);
+  const visible = q
+    ? entries.filter((entry) => {
+        const loc = locationText(entry.group, entry.source);
+        return (
+          entry.group.message.toLowerCase().includes(q) ||
+          (loc?.toLowerCase().includes(q) ?? false) ||
+          (entry.badge?.name.toLowerCase().includes(q) ?? false)
+        );
       })
-    : snapshot.groups;
+    : entries;
 
   return (
     <div className="inspector-scroll error-dock">
@@ -187,24 +211,26 @@ export function ErrorsPanel({ sourceId, source, snapshot, autoExpandFingerprint 
             }}
           />
           <span className="log-search-count">
-            {query ? `${groups.length}/${snapshot.groups.length}` : ""}
+            {query ? `${visible.length}/${entries.length}` : ""}
           </span>
         </div>
       )}
-      {snapshot.groups.length > 0 && (
+      {entries.length > 0 && (
         <div className="error-dock-head">
-          <span>{snapshot.groups.length} group{snapshot.groups.length === 1 ? "" : "s"} · {snapshot.totalOccurrences}×</span>
-          <ToolButton
-            iconOnly
-            title="Clear captured errors from memory"
-            aria-label="Clear captured errors"
-            onClick={confirmClear}
-          >
-            <Icon name="trash" size={13} />
-          </ToolButton>
+          <span>{entries.length} group{entries.length === 1 ? "" : "s"} · {totalOccurrences}×</span>
+          {clearIds.length > 0 && (
+            <ToolButton
+              iconOnly
+              title="Clear captured errors from memory"
+              aria-label="Clear captured errors"
+              onClick={confirmClear}
+            >
+              <Icon name="trash" size={13} />
+            </ToolButton>
+          )}
         </div>
       )}
-      {snapshot.groups.length === 0 ? (
+      {entries.length === 0 ? (
         <div className="error-dock-empty">
           <span className="error-dock-empty-icon"><Icon name="zap" size={18} /></span>
           <strong>No errors yet</strong>
@@ -212,15 +238,14 @@ export function ErrorsPanel({ sourceId, source, snapshot, autoExpandFingerprint 
         </div>
       ) : (
         <div className="error-group-list" aria-label="Error groups">
-          {groups.map((group) => (
+          {visible.map((entry) => (
             <GroupButton
-              key={group.fingerprint}
-              group={group}
-              source={source}
+              key={entryKey(entry)}
+              entry={entry}
               query={q}
-              expanded={expanded === group.fingerprint}
-              onOpen={() => openGroup(group)}
-              onOpenFrame={handleOpenFrame}
+              expanded={expanded === entryKey(entry)}
+              onOpen={() => openGroup(entry)}
+              onOpenFrame={(frame) => handleOpenFrame(frame, entry.source)}
               onCopy={handleCopy}
             />
           ))}

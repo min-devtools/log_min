@@ -60,6 +60,10 @@ export class LiveFilter {
 }
 
 /** line predicate for the options; null = invalid regex (matches nothing) */
+export function buildLineMatcher(opts: LiveFilterOpts): ((line: LogLine) => boolean) | null {
+  return buildMatcher(opts);
+}
+
 function buildMatcher(opts: LiveFilterOpts): ((line: LogLine) => boolean) | null {
   const { query, levels } = opts;
   let textTest: ((raw: string) => boolean) | null = null;

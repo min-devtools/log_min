@@ -96,8 +96,9 @@ interface AppState {
   commandOpen: boolean;
   /** bumped by ⌘↵ / titlebar — the active LogView toggles follow */
   runNonce: number;
-  /** set by the error dock — the matching LogView scrolls to the seq and flashes it */
-  jumpTarget: { sourceId: string; seq: number; nonce: number } | null;
+  /** set by the error dock — the matching LogView scrolls to the seq and flashes it.
+   *  combinedId set → the collection's combined view consumes it instead */
+  jumpTarget: { sourceId: string; seq: number; nonce: number; combinedId?: string } | null;
   /** line last plain-clicked in a LogView — routes and feeds the right dock */
   inspectLine: SelectedLine | null;
   /** right-dock sub-tab (Overview/Inspect/JSON/Errors) — shared so LogView can yield ⌘F to the Errors search */
@@ -160,6 +161,8 @@ interface AppState {
   setCommandOpen: (open: boolean) => void;
   runActive: () => void;
   jumpToLine: (sourceId: string, seq: number) => void;
+  /** focus + flash a line inside a collection's combined view (dock "Jump") */
+  jumpToCombinedLine: (collectionId: string, sourceId: string, seq: number) => void;
   setInspectLine: (line: SelectedLine | null) => void;
   dispatchDockTab: (event: DockTabEvent) => void;
   showToast: (title: string, body: string, kind?: ToastMsg["kind"]) => void;
@@ -176,7 +179,7 @@ export const runtimeOf = (s: Pick<AppState, "runtimes">, id: string): SourceRunt
 /** The error dock belongs to source-bound tabs; other views keep the workspace wide. */
 export const inspectorAvailable = (s: Pick<AppState, "tabs" | "activeTabId">) => {
   const kind = s.tabs.find((tab) => tab.id === s.activeTabId)?.kind;
-  return kind === "source" || kind === "error-trace";
+  return kind === "source" || kind === "error-trace" || kind === "combined";
 };
 
 export const useApp = create<AppState>((set, get) => ({
@@ -572,6 +575,15 @@ export const useApp = create<AppState>((set, get) => ({
       const id = sourceTabId(sourceId);
       return {
         jumpTarget: { sourceId, seq, nonce: (s.jumpTarget?.nonce ?? 0) + 1 },
+        activeTabId: s.tabs.some((t) => t.id === id) ? id : s.activeTabId,
+      };
+    }),
+
+  jumpToCombinedLine: (collectionId, sourceId, seq) =>
+    set((s) => {
+      const id = `comb-${collectionId}`;
+      return {
+        jumpTarget: { sourceId, seq, combinedId: collectionId, nonce: (s.jumpTarget?.nonce ?? 0) + 1 },
         activeTabId: s.tabs.some((t) => t.id === id) ? id : s.activeTabId,
       };
     }),

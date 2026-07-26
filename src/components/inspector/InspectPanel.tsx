@@ -5,10 +5,14 @@ import { Icon } from "../../ui/Icon";
 import { ToolButton } from "../../ui/ToolButton";
 import { Kv } from "../../ui/Kv";
 
-export function InspectPanel({ line, onCopy, onJump }: {
+export function InspectPanel({ line, onCopy, onJump, origin, onOpenSource }: {
   line: SelectedLine | null;
   onCopy: (text: string, label: string) => void;
   onJump: (seq: number) => void;
+  /** combined dock: which source the selected line came from */
+  origin?: { name: string; colorVar?: string };
+  /** combined dock: open the line's own source tab, focused on the line */
+  onOpenSource?: () => void;
 }) {
   const [query, setQuery] = useState("");
   const pairs = useMemo(() => (line ? extractKv(line.raw) : []), [line]);
@@ -37,10 +41,23 @@ export function InspectPanel({ line, onCopy, onJump }: {
       <section className="dock-section panel inspect-meta">
         <div className="dock-section-head">
           <h3>Selected line</h3>
+          {onOpenSource && (
+            <ToolButton title="Open this line's source in its own tab" onClick={onOpenSource}>
+              <Icon name="external-link" size={13} /> Source
+            </ToolButton>
+          )}
           <ToolButton title="Scroll to and flash this line in the log" onClick={() => onJump(line.seq)}>
             <Icon name="status" size={13} /> Jump
           </ToolButton>
         </div>
+        {origin && (
+          <Kv label="source">
+            <span className="inspect-origin" style={{ color: origin.colorVar }}>
+              <span className="conn-dot" />
+              {origin.name}
+            </span>
+          </Kv>
+        )}
         <Kv label="line">#{line.seq + 1}</Kv>
         <Kv label="stream">{line.stream}</Kv>
         <Kv label="level">{line.level ?? "—"}</Kv>

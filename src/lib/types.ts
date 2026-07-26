@@ -73,6 +73,9 @@ export interface LogLine {
   seq: number;
   raw: string;
   stream: LogStream;
+  /** ms epoch when the batch carrying this line was parsed (receive time,
+   * batch-granular ≈ 33ms) — NOT parsed from the log content */
+  at?: number;
   level?: LogLevel;
   /** set on every line belonging to a detected stack trace */
   traceId?: number;

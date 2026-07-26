@@ -63,6 +63,11 @@ export class MergedIndex {
   /** ledger generation as of our last scan — a mismatch means purgeSource
    *  spliced the ledger out from under our absolute positions */
   private gen = generation;
+  /** monotonic count of refs ever appended — feeds "N new lines" pills */
+  totalAppended = 0;
+  /** bumped whenever rows shrink or reset — incremental consumers holding
+   *  positions into the rows array must re-anchor */
+  rowsGeneration = 0;
 
   constructor(cap = MERGED_CAP) {
     this.cap = cap;
@@ -85,6 +90,7 @@ export class MergedIndex {
         seq++
       ) {
         this.rows.push({ sourceId: e.sourceId, seq });
+        this.totalAppended++;
       }
     }
     this.pos = end;
@@ -101,6 +107,7 @@ export class MergedIndex {
       this.rows = this.rows.filter((r) => bufferFor(r.sourceId).indexOfSeq(r.seq) >= 0);
       const over = this.rows.length - this.cap;
       if (over > 0) this.rows.splice(0, over);
+      this.rowsGeneration++;
     }
     return this.rows;
   }
@@ -109,5 +116,6 @@ export class MergedIndex {
     this.rows = [];
     this.pos = 0;
     this.starts.clear();
+    this.rowsGeneration++;
   }
 }
