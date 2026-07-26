@@ -4,6 +4,8 @@ import { useShallow } from "zustand/react/shallow";
 import { sourceIcon } from "../lib/types";
 import { useApp } from "../store";
 import { Icon, type IconName } from "../ui/Icon";
+import { ToolButton } from "../ui/ToolButton";
+import { THEMES } from "../lib/themes";
 import { fuzzyMatch, highlight } from "../lib/fuzzy";
 
 interface Command {
@@ -37,8 +39,10 @@ export function CommandPalette() {
   const [input, setInput] = useState("");
   const [cursor, setCursor] = useState(0);
   const [recents, setRecents] = useState<string[]>([]);
+  const [themePicker, setThemePicker] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const commandOpen = useApp((s) => s.commandOpen);
+  const theme = useApp((s) => s.theme);
   const vimKeys = useApp((s) => s.vimKeys);
   const sources = useApp((s) => s.sources);
   const collections = useApp((s) => s.collections);
@@ -52,7 +56,7 @@ export function CommandPalette() {
   );
   const {
     editSource, runActive, toggleLeft, toggleRight, openTab, toggleTheme, toggleCompact,
-    openSourceTab, startSource, stopSource, setCommandOpen, openCombinedTab,
+    openSourceTab, startSource, stopSource, setCommandOpen, openCombinedTab, setTheme,
   } = useApp.getState();
 
   useEffect(() => {
@@ -84,6 +88,7 @@ export function CommandPalette() {
       { icon: "panel-right", label: "Toggle right panel", kbd: "⌘R", action: () => toggleRight() },
       { icon: "settings", label: "Open Settings", kbd: "⌘,", action: () => openTab("settings") },
       { icon: "moon", label: "Toggle theme", action: () => toggleTheme() },
+      { icon: "settings", label: "Theme picker", action: () => setThemePicker(true) },
       { icon: "rows", label: "Toggle compact density", action: () => toggleCompact() },
       ...collections.map((c) => ({
         icon: "rows" as const,
@@ -158,6 +163,7 @@ export function CommandPalette() {
   };
 
   return (
+    <>
     <AnimatePresence>
       {commandOpen && (
         <motion.div
@@ -223,5 +229,39 @@ export function CommandPalette() {
         </motion.div>
       )}
     </AnimatePresence>
+    <AnimatePresence>
+      {themePicker && (
+        <motion.div
+          key="theme-picker-backdrop"
+          className="modal"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.18, ease: [0.32, 0.72, 0, 1] }}
+          onMouseDown={(e) => { if (e.target === e.currentTarget) setThemePicker(false); }}
+        >
+          <motion.div
+            key="theme-picker-content"
+            className="prompt-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Theme picker"
+            initial={{ opacity: 0, scale: 0.95, y: 8 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 8 }}
+            transition={{ type: "spring", stiffness: 420, damping: 30 }}
+          >
+            <strong>Theme picker</strong>
+            <p className="prompt-dialog-msg">Changes apply immediately and are saved for this device.</p>
+            <select className="side-search" style={{ width: "100%" }} value={theme} autoFocus onChange={(event) => setTheme(event.target.value)}>
+              <optgroup label="Dark">{THEMES.filter((item) => item.base === "dark").map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</optgroup>
+              <optgroup label="Light">{THEMES.filter((item) => item.base === "light").map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</optgroup>
+            </select>
+            <div className="prompt-dialog-foot"><ToolButton variant="primary" onClick={() => setThemePicker(false)}>Done</ToolButton></div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+    </>
   );
 }
