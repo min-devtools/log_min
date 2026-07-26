@@ -1,3 +1,4 @@
+import { motion } from "motion/react";
 import { ToolButton } from "../../ui/ToolButton";
 import { Icon, type IconName } from "../../ui/Icon";
 import { useApp } from "../../store";
@@ -44,11 +45,11 @@ export function WelcomeView({ active }: { active: boolean }) {
 
         <div className="welcome-launch">
           {actions.map((a) => (
-            <button type="button" className="welcome-card" key={a.label} onClick={a.onClick}>
+            <motion.button whileTap={{ scale: 0.97 }} type="button" className="welcome-card" key={a.label} onClick={a.onClick}>
               <span className="welcome-card-icon"><Icon name={a.icon} size={18} /></span>
               <strong>{a.label}</strong>
               <span className="welcome-card-desc">{a.desc}</span>
-            </button>
+            </motion.button>
           ))}
         </div>
       </div>

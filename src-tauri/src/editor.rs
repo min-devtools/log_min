@@ -46,8 +46,79 @@ fn find_by_suffix(base: &Path, rel: &Path) -> Option<PathBuf> {
 }
 
 struct EditorInvocation {
-    programs: Vec<&'static str>,
+    /// candidates tried in order; bare names fall through to a PATH lookup
+    programs: Vec<String>,
     args: Vec<String>,
+}
+
+/// `%LOCALAPPDATA%\Programs\<rest>` — where per-user installers put editors.
+#[cfg(windows)]
+fn local_programs(rest: &str) -> Option<String> {
+    let base = std::env::var("LOCALAPPDATA").ok()?;
+    Some(format!(r"{base}\Programs\{rest}"))
+}
+
+/// `%ProgramFiles%\<rest>` — the machine-wide install location.
+#[cfg(windows)]
+fn program_files(rest: &str) -> Option<String> {
+    let base = std::env::var("ProgramFiles").ok()?;
+    Some(format!(r"{base}\{rest}"))
+}
+
+/// Editor launchers, most specific location first. Windows deliberately targets
+/// the `.exe` and never the `bin\*.cmd` shim: CreateProcess cannot execute a
+/// batch file, and the `.exe` accepts the same `-g file:line:col` flag.
+#[cfg(windows)]
+fn programs_for(editor: &str) -> Vec<String> {
+    // bare names are single entries on purpose: the PATH lookup is case-insensitive
+    let (relative, bare): (&[&str], &[&str]) = match editor {
+        "vscode" => (&[r"Microsoft VS Code\Code.exe"], &["Code.exe"]),
+        "cursor" => (&[r"cursor\Cursor.exe"], &["Cursor.exe"]),
+        "zed" => (&[r"Zed\zed.exe"], &["zed.exe"]),
+        "idea" => (
+            &[r"IntelliJ IDEA\bin\idea64.exe"],
+            &["idea64.exe", "idea.exe"],
+        ),
+        _ => (&[], &[]),
+    };
+    relative
+        .iter()
+        .flat_map(|rest| [local_programs(rest), program_files(rest)])
+        .flatten()
+        .chain(bare.iter().map(|b| b.to_string()))
+        .collect()
+}
+
+#[cfg(not(windows))]
+fn programs_for(editor: &str) -> Vec<String> {
+    let candidates: &[&str] = match editor {
+        "vscode" => &[
+            "/usr/local/bin/code",
+            "/opt/homebrew/bin/code",
+            "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code",
+            "code",
+        ],
+        "cursor" => &[
+            "/usr/local/bin/cursor",
+            "/opt/homebrew/bin/cursor",
+            "/Applications/Cursor.app/Contents/Resources/app/bin/cursor",
+            "cursor",
+        ],
+        "zed" => &[
+            "/usr/local/bin/zed",
+            "/opt/homebrew/bin/zed",
+            "/Applications/Zed.app/Contents/MacOS/cli",
+            "zed",
+        ],
+        "idea" => &[
+            "/usr/local/bin/idea",
+            "/opt/homebrew/bin/idea",
+            "/Applications/IntelliJ IDEA.app/Contents/MacOS/idea",
+            "idea",
+        ],
+        _ => &[],
+    };
+    candidates.iter().map(|c| c.to_string()).collect()
 }
 
 fn path_with_position(path: &str, line: u32, col: Option<u32>) -> String {
@@ -64,45 +135,16 @@ fn editor_invocation(
     col: Option<u32>,
 ) -> Result<EditorInvocation, String> {
     let location = path_with_position(path, line, col);
-    match editor {
-        "vscode" => Ok(EditorInvocation {
-            programs: vec![
-                "/usr/local/bin/code",
-                "/opt/homebrew/bin/code",
-                "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code",
-                "code",
-            ],
-            args: vec!["-g".into(), location],
-        }),
-        "cursor" => Ok(EditorInvocation {
-            programs: vec![
-                "/usr/local/bin/cursor",
-                "/opt/homebrew/bin/cursor",
-                "/Applications/Cursor.app/Contents/Resources/app/bin/cursor",
-                "cursor",
-            ],
-            args: vec!["-g".into(), location],
-        }),
-        "zed" => Ok(EditorInvocation {
-            programs: vec![
-                "/usr/local/bin/zed",
-                "/opt/homebrew/bin/zed",
-                "/Applications/Zed.app/Contents/MacOS/cli",
-                "zed",
-            ],
-            args: vec![location],
-        }),
-        "idea" => Ok(EditorInvocation {
-            programs: vec![
-                "/usr/local/bin/idea",
-                "/opt/homebrew/bin/idea",
-                "/Applications/IntelliJ IDEA.app/Contents/MacOS/idea",
-                "idea",
-            ],
-            args: vec!["--line".into(), line.to_string(), path.into()],
-        }),
-        _ => Err(format!("unsupported editor: {editor}")),
-    }
+    let args = match editor {
+        "vscode" | "cursor" => vec!["-g".into(), location],
+        "zed" => vec![location],
+        "idea" => vec!["--line".into(), line.to_string(), path.into()],
+        _ => return Err(format!("unsupported editor: {editor}")),
+    };
+    Ok(EditorInvocation {
+        programs: programs_for(editor),
+        args,
+    })
 }
 
 pub fn open_editor(
@@ -133,8 +175,10 @@ pub fn open_editor(
     let path = resolved.to_string_lossy();
     let invocation = editor_invocation(editor, &path, line, col)?;
     let mut last_error = None;
-    for program in invocation.programs {
-        if program.contains('/') && !Path::new(program).is_file() {
+    for program in &invocation.programs {
+        // absolute candidates are location guesses — skip the misses quietly;
+        // bare names are left to the OS PATH lookup
+        if Path::new(program).is_absolute() && !Path::new(program).is_file() {
             continue;
         }
         match Command::new(program)
@@ -167,7 +211,17 @@ mod tests {
         assert!(invocation
             .programs
             .iter()
-            .any(|program| program.ends_with("/code")));
+            .any(|program| program.to_lowercase().contains("code")));
+    }
+
+    #[test]
+    fn every_supported_editor_offers_at_least_one_launcher_on_this_platform() {
+        // a platform-specific programs_for() arm that forgot an editor would
+        // otherwise surface only as "CLI was not found" at click time
+        for editor in ["vscode", "cursor", "zed", "idea"] {
+            let invocation = editor_invocation(editor, "/tmp/main.rs", 1, None).unwrap();
+            assert!(!invocation.programs.is_empty(), "{editor} has no launcher");
+        }
     }
 
     #[test]

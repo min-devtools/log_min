@@ -1032,6 +1032,60 @@ body.light .docs-preview-editor { color: var(--editor-fg); }
   min-width: 0;
 }
 
+/* motion (JS) owns these surfaces' enter/exit in this app — the design-system
+   CSS keyframes would run on top and fight the springs (visible end-hitch) */
+.command, .palette, .toast, .prompt-dialog { animation: none; }
+
+/* mini-tabs: the active background is a motion pill that glides between tabs,
+   so the static active styles from the design system go transparent here */
+.mini-tabs button { position: relative; }
+.mini-tabs button.active { background: transparent; border-color: transparent; }
+.mini-tabs button > svg,
+.mini-tabs .mini-tab-label { position: relative; z-index: 1; }
+.mini-tab-pill {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: 7px;
+  background: var(--pane-2);
+  border: 1px solid var(--line);
+}
+
+/* "↓ N new lines" pill — overlays the log view while follow is paused.
+   The wrapper owns centering so motion can animate the button's transform freely. */
+.log-new-pill-wrap {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 14px;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 6;
+}
+
+.log-new-pill-wrap.with-stdin { bottom: 96px; }
+
+.log-new-pill {
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 12px;
+  border: 1px solid color-mix(in oklab, var(--accent-secondary), transparent 45%);
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--accent-secondary), var(--pane) 82%);
+  color: var(--text);
+  font: 600 0.8462rem/1 var(--font-body);
+  box-shadow: 0 4px 14px color-mix(in oklab, var(--shadow, #000), transparent 65%);
+  cursor: default;
+}
+
+.log-new-pill:hover {
+  background: color-mix(in oklab, var(--accent-secondary), var(--pane) 72%);
+}
+
 .log-line {
   position: absolute;
   left: 0;
@@ -1057,6 +1111,9 @@ body.light .docs-preview-editor { color: var(--editor-fg); }
   padding-top: 4px;
   padding-bottom: 4px;
   white-space: normal;
+  /* isolate each row's text layout — re-wrapping one entering row must not
+     invite the engine to reconsider its absolutely-positioned siblings */
+  contain: layout style;
 }
 
 .log-line.wrapped .log-raw {

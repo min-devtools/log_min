@@ -1,21 +1,41 @@
-import { useEffect } from "react";
+import { memo, useEffect } from "react";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { open } from "@tauri-apps/plugin-dialog";
-import { Titlebar } from "./components/Titlebar";
-import { Sidebar } from "./components/Sidebar";
-import { TabsBar } from "./components/TabsBar";
-import { Inspector } from "./components/Inspector";
-import { Statusbar } from "./components/Statusbar";
-import { CommandPalette } from "./components/CommandPalette";
-import { Toast } from "./components/Toast";
-import { Dialog } from "./components/Dialog";
-import { PanelResizeHandles } from "./components/ResizeHandles";
-import { WelcomeView } from "./components/views/WelcomeView";
-import { LogView } from "./components/views/LogView";
-import { ErrorTraceView } from "./components/views/ErrorTraceView";
-import { SourceEditView } from "./components/views/SourceEditView";
-import { SettingsView } from "./components/views/SettingsView";
-import { CombinedView } from "./components/views/CombinedView";
+import { Titlebar as TitlebarImpl } from "./components/Titlebar";
+import { Sidebar as SidebarImpl } from "./components/Sidebar";
+import { TabsBar as TabsBarImpl } from "./components/TabsBar";
+import { Inspector as InspectorImpl } from "./components/Inspector";
+import { Statusbar as StatusbarImpl } from "./components/Statusbar";
+import { CommandPalette as CommandPaletteImpl } from "./components/CommandPalette";
+import { Toast as ToastImpl } from "./components/Toast";
+import { Dialog as DialogImpl } from "./components/Dialog";
+import { PanelResizeHandles as PanelResizeHandlesImpl } from "./components/ResizeHandles";
+import { WelcomeView as WelcomeViewImpl } from "./components/views/WelcomeView";
+import { LogView as LogViewImpl } from "./components/views/LogView";
+import { ErrorTraceView as ErrorTraceViewImpl } from "./components/views/ErrorTraceView";
+import { SourceEditView as SourceEditViewImpl } from "./components/views/SourceEditView";
+import { SettingsView as SettingsViewImpl } from "./components/views/SettingsView";
+import { CombinedView as CombinedViewImpl } from "./components/views/CombinedView";
+
+// App re-renders on shell state (dock collapse, theme, tab switches). Without memo
+// that re-render cascades into every panel — including motion components whose
+// `layout` props re-measure the DOM — right while the dock CSS transition is
+// already reflowing every frame. Memoized, a dock toggle re-renders App alone.
+const Titlebar = memo(TitlebarImpl);
+const Sidebar = memo(SidebarImpl);
+const TabsBar = memo(TabsBarImpl);
+const Inspector = memo(InspectorImpl);
+const Statusbar = memo(StatusbarImpl);
+const CommandPalette = memo(CommandPaletteImpl);
+const Toast = memo(ToastImpl);
+const Dialog = memo(DialogImpl);
+const PanelResizeHandles = memo(PanelResizeHandlesImpl);
+const WelcomeView = memo(WelcomeViewImpl);
+const LogView = memo(LogViewImpl);
+const ErrorTraceView = memo(ErrorTraceViewImpl);
+const SourceEditView = memo(SourceEditViewImpl);
+const SettingsView = memo(SettingsViewImpl);
+const CombinedView = memo(CombinedViewImpl);
 import { inspectorAvailable, useApp } from "./store";
 import { themeBase } from "./lib/themes";
 import { applyPalette, readBuiltinPalette } from "./lib/themeContract";

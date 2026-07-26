@@ -1,3 +1,4 @@
+import { motion, AnimatePresence } from "motion/react";
 import { ToolButton } from "../ui/ToolButton";
 import { Badge } from "../ui/Badge";
 import { Icon } from "../ui/Icon";
@@ -43,7 +44,18 @@ export function Titlebar() {
           <Icon name="plus" />
         </ToolButton>
         <ToolButton iconOnly title="Toggle theme" aria-label="Toggle theme" onClick={toggleTheme}>
-          <Icon name={themeBase(theme) === "dark" ? "sun" : "moon"} />
+          <AnimatePresence mode="popLayout" initial={false}>
+            <motion.span
+              key={themeBase(theme)}
+              style={{ display: "inline-flex" }}
+              initial={{ rotate: -90, opacity: 0 }}
+              animate={{ rotate: 0, opacity: 1 }}
+              exit={{ rotate: 90, opacity: 0 }}
+              transition={{ duration: 0.14, ease: [0.2, 0, 0, 1] }}
+            >
+              <Icon name={themeBase(theme) === "dark" ? "sun" : "moon"} />
+            </motion.span>
+          </AnimatePresence>
         </ToolButton>
         <ToolButton iconOnly title="Toggle compact density" aria-label="Toggle compact density" onClick={toggleCompact}>
           <Icon name="rows" />

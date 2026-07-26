@@ -12,8 +12,14 @@ export default defineConfig({
     __APP_VERSION__: JSON.stringify(version),
   },
   server: {
-    port: 1420,
+    // PORT override lets a second dev instance (benchmarks/preview) coexist with
+    // `tauri dev`, which needs exactly 1420 (tauri.conf.json devUrl)
+    port: Number(process.env.PORT) || 1420,
     strictPort: true,
+    // src/styles/*.css are symlinks into the sibling ../design-systems repo, and
+    // their url() font paths resolve to that real path — outside the project
+    // root, so dev serving needs the parent directory allowed explicitly.
+    fs: { allow: [".."] },
   },
   build: {
     target: "safari15",

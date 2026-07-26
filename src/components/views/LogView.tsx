@@ -1,4 +1,5 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { motion, AnimatePresence } from "motion/react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { save } from "@tauri-apps/plugin-dialog";
@@ -20,17 +21,55 @@ import { estimateLogRowHeight } from "../../lib/wrapLayout";
 import { sourceIcon } from "../../lib/types";
 import type { LogLevel, LogLine } from "../../lib/types";
 
-const OVERSCAN = 20;
+// 8 rows ≈ 170px of runway each side; 20 doubled the mounted DOM for no visible gain
+const OVERSCAN = 8;
 const COLLAPSE_LEN = 1200;
 const PREVIEW_LEN = 200;
 
 const isJsonLike = (raw: string) => /^\s*[\[{]/.test(raw);
 const previewText = (raw: string) => raw.slice(0, Math.min(raw.length, PREVIEW_LEN)) + "…";
 
+/** token spans survive row unmount/remount — the virtual window churns rows on
+ * every scroll reversal and follow-mode batch, and re-running the regex
+ * tokenizer on remount was pure waste. Keyed by the immutable ring line object;
+ * the string key covers every input that changes the rendered spans. */
+const spanCache = new WeakMap<LogLine, { key: string; content: ReactNode }>();
+
 /** row height in px, derived from the app font size (mono line + padding) */
 function useRowHeight(): number {
   const uiFontSize = useApp((s) => s.uiFontSize);
   return Math.round(uiFontSize * 1.55);
+}
+
+/** bufVersions bumps at batch rate — 30Hz per live source, more with several.
+ * Each bump is its own zustand set → its own render pass, and on a slow machine
+ * those renders queue back-to-back and starve the frame budget. Subscribe
+ * through an rAF gate instead: however many batches land, the view repaints at
+ * most once per frame, always with the latest version. */
+function useFrameVersion(sourceId: string, active: boolean): number {
+  const [version, setVersion] = useState(() => useApp.getState().bufVersions[sourceId] ?? 0);
+  useEffect(() => {
+    if (!active) return;
+    let raf = 0;
+    let latest = useApp.getState().bufVersions[sourceId] ?? 0;
+    setVersion(latest);
+    const unsub = useApp.subscribe((s) => {
+      const next = s.bufVersions[sourceId] ?? 0;
+      if (next === latest) return;
+      latest = next;
+      if (!raf) {
+        raf = requestAnimationFrame(() => {
+          raf = 0;
+          setVersion(latest);
+        });
+      }
+    });
+    return () => {
+      unsub();
+      cancelAnimationFrame(raf);
+    };
+  }, [sourceId, active]);
+  return active ? version : -1;
 }
 
 function fmtInt(n: number): string {
@@ -98,16 +137,23 @@ const LogRow = memo(function LogRow({
 }: RowProps) {
   const displayText = collapsed ? previewText(line.raw) : line.raw;
   const isMatch = qRaw ? lineMatches(line.raw, qRaw, caseSensitive, regexMode) : false;
-  // token spans + search <mark>s — the expensive part; cached across position-only re-renders
-  const content = useMemo(() => {
+  // token spans + search <mark>s — the expensive part; cached in spanCache so the
+  // work survives remounts (openLoc is ref-stable, so it can stay out of the key)
+  const cacheKey = `${collapsed ? "c" : "f"}|${syntax ? 1 : 0}|${caseSensitive ? 1 : 0}|${regexMode ? 1 : 0}|${isMatch ? qRaw : ""}`;
+  const cached = spanCache.get(line);
+  let content: ReactNode;
+  if (cached && cached.key === cacheKey) {
+    content = cached.content;
+  } else {
     const text = rawLogText(displayText);
-    return renderSpans(
+    content = renderSpans(
       text,
       lineTokens(text, line.ansi, syntax),
       isMatch ? searchMarks(text, qRaw, caseSensitive, regexMode) : [],
       openLoc,
     );
-  }, [displayText, line.ansi, syntax, isMatch, qRaw, caseSensitive, regexMode, openLoc]);
+    spanCache.set(line, { key: cacheKey, content });
+  }
   const style: CSSProperties = wrap
     ? { transform: `translateY(${start}px)`, minHeight: rowH }
     : { top: start, height: rowH };
@@ -188,7 +234,7 @@ export function LogView({ sourceId, active }: Props) {
     }),
   );
   // hidden tabs unsubscribe from batches; activation flips the sentinel → one fresh paint
-  const version = useApp((s) => (active ? s.bufVersions[sourceId] ?? 0 : -1));
+  const version = useFrameVersion(sourceId, active);
   // actions are stable — getState() avoids subscribing to the whole store
   const { startSource, stopSource, sendStdin, showToast, editSource, setInspectLine } = useApp.getState();
 
@@ -199,6 +245,8 @@ export function LogView({ sourceId, active }: Props) {
   const dockTab = useApp((s) => s.dockTab.tab);
 
   const scrollRef = useRef<HTMLDivElement>(null);
+  /** viewport height, kept by the ResizeObserver — read this, not el.clientHeight */
+  const viewportHRef = useRef(0);
   const [follow, setFollow] = useState(true);
   const [wrap, setWrap] = useState(() => localStorage.getItem(`log:wrap:${sourceId}`) !== "0");
   const [syntax, setSyntax] = useState(() => localStorage.getItem(`log:syntax:${sourceId}`) !== "0");
@@ -290,6 +338,26 @@ export function LogView({ sourceId, active }: Props) {
     useFlushSync: false,
   });
 
+  /** spacer height in px, mirrored from render values — the follow/scroll hot paths
+   * read this instead of el.scrollHeight, which forces a synchronous layout */
+  const totalPxRef = useRef(0);
+  totalPxRef.current = wrap ? wrappedVirtualizer.getTotalSize() : viewLen * rowH;
+
+  /** at most one scrollTop write per frame: batches land at 30Hz and every write
+   * invalidates layout, so unbatched sticks force layout once per batch AND per
+   * scroll event — the main source of live-follow jank */
+  const stickRafRef = useRef(0);
+  const scheduleStick = useCallback(() => {
+    if (stickRafRef.current) return;
+    stickRafRef.current = requestAnimationFrame(() => {
+      stickRafRef.current = 0;
+      const el = scrollRef.current;
+      if (!el || !followRef.current) return;
+      el.scrollTop = totalPxRef.current;
+    });
+  }, []);
+  useEffect(() => () => cancelAnimationFrame(stickRafRef.current), []);
+
   const isCmd = def?.kind === "cmd";
   const live = rt.status === "live";
   const exited = isCmd && rt.status === "idle" && rt.exitCode !== undefined && rt.exitCode !== null;
@@ -308,23 +376,37 @@ export function LogView({ sourceId, active }: Props) {
     // width 0 means the tab is hidden, not a 0px viewport — keeping the last real
     // width matters: row heights are estimated from it, and a 1px viewport would
     // bake absurd estimates into the virtualizer's cache on the next re-enable
+    // the dock collapse animates the center column, so this observer fires every
+    // frame for ~180ms — debounce the width STATE (it only feeds wrap-row height
+    // estimates) so the transition doesn't drag a React render per frame behind it.
+    // the height ref updates inline: writing a ref schedules nothing.
+    let widthTimer = 0;
     const observer = new ResizeObserver(([entry]) => {
       const w = entry.contentRect.width;
-      if (w > 0) setViewportWidth(w);
+      if (entry.contentRect.height > 0) viewportHRef.current = entry.contentRect.height;
+      if (w > 0) {
+        window.clearTimeout(widthTimer);
+        widthTimer = window.setTimeout(() => setViewportWidth(w), 120);
+      }
     });
     observer.observe(el);
     if (el.clientWidth > 0) setViewportWidth(el.clientWidth);
-    return () => observer.disconnect();
+    if (el.clientHeight > 0) viewportHRef.current = el.clientHeight;
+    return () => {
+      window.clearTimeout(widthTimer);
+      observer.disconnect();
+    };
   }, [active]);
 
   // ── virtual window ──────────────────────────────────────────────────────
   const computeRange = useCallback(() => {
     const el = scrollRef.current;
     if (!el || wrap) return;
-    const first = Math.max(0, Math.floor(el.scrollTop / rowH) - OVERSCAN);
+    const top = el.scrollTop;
+    const first = Math.max(0, Math.floor(top / rowH) - OVERSCAN);
     const last = Math.min(
       viewLen,
-      Math.ceil((el.scrollTop + el.clientHeight) / rowH) + OVERSCAN,
+      Math.ceil((top + viewportHRef.current) / rowH) + OVERSCAN,
     );
     setRange((r) => (r[0] === first && r[1] === last ? r : [first, last]));
   }, [viewLen, rowH, wrap]);
@@ -365,13 +447,13 @@ export function LogView({ sourceId, active }: Props) {
     return () => cancelAnimationFrame(raf);
   }, [active, computeRange, ring, rowH, viewIdx, wrap, wrappedVirtualizer]);
 
-  // new batch: stick to bottom when following, always refresh the window
+  // new batch: stick to bottom when following, always refresh the window.
+  // the stick is rAF-coalesced — a raw scrollHeight read + scrollTop write per
+  // batch forces one full layout pass per batch on top of the frame's own
   useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    if (followRef.current) el.scrollTop = el.scrollHeight;
+    if (followRef.current) scheduleStick();
     computeRange();
-  }, [version, computeRange, rowH, wrap, ring, wrappedVirtualizer]);
+  }, [version, computeRange, rowH, wrap, ring, wrappedVirtualizer, scheduleStick]);
 
   /** last seen scrollTop — breaking follow needs the scroll DIRECTION, not position:
    * batches land faster than scroll events, so "not at bottom" alone is just lag */
@@ -390,26 +472,26 @@ export function LogView({ sourceId, active }: Props) {
     }
     const scrolledUp = top < lastTopRef.current - 1;
     lastTopRef.current = top;
-    const atBottom = top + el.clientHeight >= el.scrollHeight - rowH;
+    const atBottom = top + viewportHRef.current >= totalPxRef.current - rowH;
     if (followRef.current) {
       if (scrolledUp && !atBottom) {
         // user scrolled up — never fight them
         setFollow(false);
         pausedAtRef.current = ring.totalSeen;
       } else if (!atBottom) {
-        // layout grew under us (new batch, wrap re-measure) — re-stick
-        el.scrollTop = el.scrollHeight;
+        // layout grew under us (new batch, wrap re-measure) — re-stick next frame
+        scheduleStick();
       }
     } else if (atBottom) {
       setFollow(true);
     }
     if (!wrap) computeRange();
-  }, [active, computeRange, ring, rowH, viewIdx, wrap, wrappedVirtualizer]);
+  }, [active, computeRange, ring, rowH, viewIdx, wrap, wrappedVirtualizer, scheduleStick]);
 
   const resumeFollow = useCallback(() => {
     setFollow(true);
     const el = scrollRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
+    if (el) el.scrollTop = totalPxRef.current;
   }, []);
 
   useEffect(() => {
@@ -423,7 +505,7 @@ export function LogView({ sourceId, active }: Props) {
     if (followRef.current && ring.length) {
       requestAnimationFrame(() => {
         const el = scrollRef.current;
-        if (el) el.scrollTop = el.scrollHeight;
+        if (el) el.scrollTop = totalPxRef.current;
       });
     }
   }, [wrap, viewportWidth, uiFontSize, computeRange, ring]);
@@ -462,7 +544,7 @@ export function LogView({ sourceId, active }: Props) {
     setFollow(false);
     pausedAtRef.current = ring.totalSeen;
     if (wrap) wrappedVirtualizer.scrollToIndex(i, { align: "center" });
-    else el.scrollTop = Math.max(0, i * rowH - el.clientHeight / 2);
+    else el.scrollTop = Math.max(0, i * rowH - viewportHRef.current / 2);
     setFlashSeq(line.seq);
     window.setTimeout(() => setFlashSeq((s) => (s === line.seq ? null : s)), 900);
     if (!wrap) computeRange();
@@ -603,16 +685,17 @@ export function LogView({ sourceId, active }: Props) {
     [wrap, wrappedVirtualizer],
   );
 
-  /** tok-path click → resolve against the source cwd and open in the editor */
-  const openLoc = useCallback(
-    (loc: string) => {
-      if (!def) return;
-      void openLocation(loc, def).then((opened) => {
-        if (!opened) showToast("Copied", "Source location copied. Choose an editor in Settings to open it directly.");
-      });
-    },
-    [def, showToast],
-  );
+  /** tok-path click → resolve against the source cwd and open in the editor.
+   * Identity-stable via ref indirection: cached row spans capture it once and
+   * must keep calling the LATEST def even after a source edit. */
+  const openLocImpl = useRef<(loc: string) => void>(() => {});
+  openLocImpl.current = (loc: string) => {
+    if (!def) return;
+    void openLocation(loc, def).then((opened) => {
+      if (!opened) showToast("Copied", "Source location copied. Choose an editor in Settings to open it directly.");
+    });
+  };
+  const openLoc = useCallback((loc: string) => openLocImpl.current(loc), []);
 
   useEffect(() => {
     if (!active) return;
@@ -675,8 +758,9 @@ export function LogView({ sourceId, active }: Props) {
         if (wrap) wrappedVirtualizer.scrollToIndex(i);
         else if (el) {
           const top = i * rowH;
+          const vh = viewportHRef.current;
           if (top < el.scrollTop) el.scrollTop = top;
-          else if (top + rowH > el.scrollTop + el.clientHeight) el.scrollTop = top + rowH - el.clientHeight;
+          else if (top + rowH > el.scrollTop + vh) el.scrollTop = top + rowH - vh;
           computeRange();
         }
       }
@@ -877,8 +961,15 @@ export function LogView({ sourceId, active }: Props) {
         </div>
       </div>
 
+      <AnimatePresence initial={false}>
       {searchOpen && (
-        <div className={`log-search ${regexInvalid ? "invalid" : ""}`}>
+        <motion.div
+          className={`log-search ${regexInvalid ? "invalid" : ""}`}
+          initial={{ opacity: 0, y: -6 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -6 }}
+          transition={{ duration: 0.12, ease: [0.05, 0.7, 0.1, 1] }}
+        >
           <Icon name="search" size={13} />
           <input
             ref={searchInputRef}
@@ -947,11 +1038,19 @@ export function LogView({ sourceId, active }: Props) {
           <ToolButton iconOnly title="Close (Esc)" aria-label="Close search" onClick={() => setSearchOpen(false)}>
             <Icon name="x" />
           </ToolButton>
-        </div>
+        </motion.div>
       )}
+      </AnimatePresence>
 
+      <AnimatePresence initial={false}>
       {exited && (
-        <div className={`log-exit-banner ${rt.exitCode === 0 ? "ok" : "err"}`}>
+        <motion.div
+          className={`log-exit-banner ${rt.exitCode === 0 ? "ok" : "err"}`}
+          initial={{ opacity: 0, y: -6 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -6 }}
+          transition={{ duration: 0.12, ease: [0.05, 0.7, 0.1, 1] }}
+        >
           <span>
             exited with code {rt.exitCode}
             {rt.startedAt ? ` · started ${new Date(rt.startedAt).toLocaleTimeString()}` : ""}
@@ -959,16 +1058,25 @@ export function LogView({ sourceId, active }: Props) {
           <ToolButton onClick={() => void startSource(sourceId)}>
             <Icon name="refresh" /> Restart
           </ToolButton>
-        </div>
+        </motion.div>
       )}
+      </AnimatePresence>
+      <AnimatePresence initial={false}>
       {rt.status === "error" && rt.error && (
-        <div className="log-exit-banner err">
+        <motion.div
+          className="log-exit-banner err"
+          initial={{ opacity: 0, y: -6 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -6 }}
+          transition={{ duration: 0.12, ease: [0.05, 0.7, 0.1, 1] }}
+        >
           <span>{rt.error}</span>
           <ToolButton onClick={() => void startSource(sourceId)}>
             <Icon name="refresh" /> Retry
           </ToolButton>
-        </div>
+        </motion.div>
       )}
+      </AnimatePresence>
 
       <div className="log-scroll" ref={scrollRef} onScroll={onScroll}>
         <div
@@ -1045,6 +1153,27 @@ export function LogView({ sourceId, active }: Props) {
                   : "Press Tail to start following the file."}
           </div>
         )}
+      </div>
+
+      {/* follow paused + new output below → one tap back to the live edge */}
+      <div className={`log-new-pill-wrap ${isCmd ? "with-stdin" : ""}`}>
+        <AnimatePresence>
+          {active && !follow && ring.totalSeen > pausedAtRef.current && (
+            <motion.button
+              type="button"
+              className="log-new-pill"
+              initial={{ opacity: 0, y: 8, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 8, scale: 0.96 }}
+              transition={{ type: "spring", stiffness: 420, damping: 28 }}
+              onClick={resumeFollow}
+              title="Jump to the newest lines and resume follow (⌘↵)"
+            >
+              <Icon name="arrow-down" size={13} />
+              <span>{fmtInt(ring.totalSeen - pausedAtRef.current)} new line{ring.totalSeen - pausedAtRef.current === 1 ? "" : "s"}</span>
+            </motion.button>
+          )}
+        </AnimatePresence>
       </div>
 
       {isCmd && (

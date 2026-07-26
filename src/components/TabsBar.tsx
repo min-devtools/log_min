@@ -71,12 +71,15 @@ export function TabsBar() {
                 e.preventDefault();
                 setMenu({ x: e.clientX, y: e.clientY, id: tab.id });
               }}
-              onDragStart={(e: any) => {
+              // Capture variants on purpose: motion filters bare onDragStart/onDragEnd
+              // off the DOM (they're its pan-gesture props), which silently kills
+              // HTML5 tab drag-reorder. Capture-phase handlers pass through.
+              onDragStartCapture={(e: any) => {
                 setDragId(tab.id);
                 e.dataTransfer.effectAllowed = "move";
                 e.dataTransfer.setData("application/x-logmin-tab", tab.id);
               }}
-              onDragEnd={() => {
+              onDragEndCapture={() => {
                 setDragId(null);
                 setOverId(null);
               }}

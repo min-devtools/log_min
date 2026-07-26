@@ -3,12 +3,17 @@ import ReactDOM from "react-dom/client";
 import App from "./App";
 import { initPersistence } from "./lib/persist";
 import { initLogEvents, initOpenedFileEvents } from "./lib/logmin";
+import { installBenchHarness } from "./lib/bench";
 import "./styles/tokens.css";
 import "./styles/themes.css";
 import "./styles/base.css";
 import "./styles/layout.css";
 import "./styles/components.css";
 import "./styles/views.css";
+
+// dev-only FPS benchmark harness (?bench) — tree-shaken out of release builds.
+// `vite build --mode bench` keeps it in a prod-minified bundle for benchmarking.
+if (import.meta.env.DEV || import.meta.env.MODE === "bench") installBenchHarness();
 
 async function initRuntime(): Promise<void> {
   // Open-With files must land after persisted sources are restored, otherwise

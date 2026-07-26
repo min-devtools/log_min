@@ -2149,6 +2149,7 @@ version = "0.1.0-alpha"
 dependencies = [
  "libc",
  "reqwest",
+ "same-file",
  "serde",
  "serde_json",
  "tauri",

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import type { ErrorGroup } from "../../lib/errors";
 import { insightIndexFor } from "../../lib/insight";
 import { frameLocation } from "../../lib/logPresentation";
@@ -25,15 +26,23 @@ export function OverviewPanel({ sourceId, source, groups, onShowError }: {
   groups: ErrorGroup[];
   onShowError: (group: ErrorGroup) => void;
 }) {
-  const rt = useApp((s) => runtimeOf(s, sourceId));
+  // status fields only — under live load the runtime object is replaced per batch
+  // (30Hz), and redrawing the whole dock panel at batch rate starves the log view.
+  // Counters below refresh on the 1s tick instead, which the eye can't tell apart.
+  const rt = useApp(
+    useShallow((s) => {
+      const r = runtimeOf(s, sourceId);
+      return { status: r.status, pid: r.pid, exitCode: r.exitCode, startedAt: r.startedAt };
+    }),
+  );
   const clearErrors = useApp((s) => s.clearErrors);
-  useApp((s) => s.bufVersions[sourceId] ?? 0); // re-render per batch
   const [, setTick] = useState(0);
-  // 1s tick keeps uptime, rates, and 60s windows moving while the source is silent
+  // 1s tick keeps uptime, rates, 60s windows AND the counters moving
   useEffect(() => {
     const t = window.setInterval(() => setTick((x) => x + 1), 1000);
     return () => window.clearInterval(t);
   }, []);
+  const counters = runtimeOf(useApp.getState(), sourceId);
 
   const now = Date.now();
   const ring = bufferFor(sourceId);
@@ -55,16 +64,16 @@ export function OverviewPanel({ sourceId, source, groups, onShowError }: {
 
       <section className="dock-section panel">
         <h3>Throughput</h3>
-        <Kv label="total lines">{fmtInt(rt.lines)}</Kv>
+        <Kv label="total lines">{fmtInt(counters.lines)}</Kv>
         <Kv label="retained">{fmtInt(ring.length)}</Kv>
-        <Kv label="dropped">{fmtInt(rt.dropped)}</Kv>
+        <Kv label="dropped">{fmtInt(counters.dropped)}</Kv>
         <Kv label="lines/s">{insight.linesPerSec.toFixed(1)}</Kv>
       </section>
 
       <section className="dock-section panel">
         <div className="dock-section-head">
           <h3>Signals</h3>
-          {(rt.errors > 0 || groups.length > 0) && (
+          {(counters.errors > 0 || groups.length > 0) && (
             <ToolButton
               iconOnly
               title="Clear captured errors from memory"
@@ -76,7 +85,7 @@ export function OverviewPanel({ sourceId, source, groups, onShowError }: {
           )}
         </div>
         {/* rt.errors counts occurrences (traces group to 1); errors60 counts err-leveled lines */}
-        <Kv label="errors">{fmtInt(rt.errors)}{insight.errors60 ? ` · ${fmtInt(insight.errors60)} in 60s` : ""}</Kv>
+        <Kv label="errors">{fmtInt(counters.errors)}{insight.errors60 ? ` · ${fmtInt(insight.errors60)} in 60s` : ""}</Kv>
         <Kv label="warnings">{fmtInt(insight.totalWarns)}{insight.warns60 ? ` · ${fmtInt(insight.warns60)} in 60s` : ""}</Kv>
         {recent.length > 0 && (
           <div className="dock-signal-list" aria-label="Recent error groups">
