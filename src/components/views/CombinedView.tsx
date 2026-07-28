@@ -93,15 +93,17 @@ export function CombinedView({ collectionId, active }: Props) {
     levels: levelFilter,
   });
 
-  const chPx = uiFontSize * 0.62;
   const viewport = useLogViewport(model, {
     active,
     wrap,
     rowH,
     uiFontSize,
     version,
-    // prefix column + separator + optional time gutter
-    reservedPx: Math.round(prefixCh * chPx + 18 + (showTime ? 8 * chPx + 8 : 0)),
+    // prefix column + optional 8ch time gutter
+    gutterCh: prefixCh + (showTime ? 8 : 0),
+    // .combined-prefix: 8 padding-right + 10 margin-right + 1 border, plus one
+    // 8px row gap per in-flow gutter
+    gutterPx: 19 + 8 + (showTime ? 8 : 0),
   });
   jumpToAddrRef.current = viewport.jumpToAddr;
 

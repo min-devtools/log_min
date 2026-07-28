@@ -54,6 +54,11 @@ function renderView(tab: TabDef, active: boolean) {
   }
 }
 
+function globalShortcutsBlocked(): boolean {
+  const state = useApp.getState();
+  return Boolean(state.dialog || state.commandOpen || document.querySelector('[aria-modal="true"]'));
+}
+
 export default function App() {
   // per-slice selectors — a bare useApp() would re-render the whole shell on every log batch
   const tabs = useApp((s) => s.tabs);
@@ -109,6 +114,7 @@ export default function App() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.defaultPrevented) return;
+      if (globalShortcutsBlocked()) return;
       const mod = e.metaKey || e.ctrlKey;
       const key = e.key.toLowerCase();
       if (mod && key === "k") {

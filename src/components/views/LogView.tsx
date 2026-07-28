@@ -58,7 +58,8 @@ export function LogView({ sourceId, active }: Props) {
   );
   const version = useFrameVersion(active, readVersion);
   // actions are stable — getState() avoids subscribing to the whole store
-  const { startSource, stopSource, sendStdin, showToast, editSource, setInspectLine } = useApp.getState();
+  const { startSource, stopSource, sendStdin, showToast, editSource, setInspectLine, saveSource } =
+    useApp.getState();
 
   const ring = bufferFor(sourceId);
   const model = useMemo(() => new RingModel(sourceId), [sourceId]);
@@ -114,7 +115,9 @@ export function LogView({ sourceId, active }: Props) {
     rowH,
     uiFontSize,
     version,
-    reservedPx: showTime ? Math.round(uiFontSize * 0.62 * 8) + 8 : 0,
+    // .log-time is 8ch wide, plus the row's 8px flex gap before .log-raw
+    gutterCh: showTime ? 8 : 0,
+    gutterPx: showTime ? 8 : 0,
   });
   jumpToAddrRef.current = viewport.jumpToAddr;
 
@@ -322,8 +325,20 @@ export function LogView({ sourceId, active }: Props) {
         <div className="log-toolbar-info" title={def.command ?? def.url ?? def.path}>
           <Icon name={sourceIcon(def)} size={14} />
           <span className="log-toolbar-target">{def.command ?? def.url ?? def.path}</span>
+          {def.transient && <span className="log-transient-badge">Temporary</span>}
         </div>
         <div className="log-toolbar-actions">
+          {def.transient && (
+            <ToolButton
+              title="Keep this temporary file in Sources"
+              onClick={() => {
+                saveSource({ ...def, transient: undefined });
+                showToast("Source saved", `${def.name} will stay in Sources.`);
+              }}
+            >
+              <Icon name="save" /> Keep source
+            </ToolButton>
+          )}
           {selectedCount > 0 && (
             <ToolButton
               iconOnly

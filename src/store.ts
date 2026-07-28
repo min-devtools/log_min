@@ -78,6 +78,8 @@ interface AppState {
   editingSourceId: string | null;
   /** prefill for a new source (palette templates, e.g. SSH tail) */
   sourceDraft: Partial<SourceDef> | null;
+  /** protects an in-progress source form from being replaced or closed silently */
+  sourceEditDirty: boolean;
 
   tabs: TabDef[];
   activeTabId: string;
@@ -126,6 +128,7 @@ interface AppState {
   sendStdin: (id: string, line: string) => Promise<void>;
   /** open the source-edit tab for an existing source (id) or a new draft (null, optional prefill) */
   editSource: (id: string | null, draft?: Partial<SourceDef>) => void;
+  setSourceEditDirty: (dirty: boolean) => void;
   onBatch: (sourceId: string, lines: number, errors: number, dropped: number) => void;
   /** "Clear buffer" pressed — zero the per-source counters and drop the published line */
   onBufferCleared: (sourceId: string) => void;
@@ -190,6 +193,7 @@ export const useApp = create<AppState>((set, get) => ({
   errorVersions: {},
   editingSourceId: null,
   sourceDraft: null,
+  sourceEditDirty: false,
 
   tabs: session?.tabs ?? [{ id: "welcome", kind: "welcome", ...TAB_META.welcome }],
   activeTabId: session?.activeTabId ?? "welcome",
@@ -222,7 +226,9 @@ export const useApp = create<AppState>((set, get) => ({
       const sources = exists ? s.sources.map((x) => (x.id === def.id ? def : x)) : [...s.sources, def];
       // keep an open tab's title/icon in sync with the edited definition
       const tabs = s.tabs.map((t) =>
-        t.sourceId === def.id ? { ...t, title: def.name, icon: sourceIcon(def) } : t,
+        t.sourceId === def.id
+          ? { ...t, title: def.name, icon: sourceIcon(def), transient: def.transient }
+          : t,
       );
       return { sources, tabs };
     }),
@@ -338,6 +344,12 @@ export const useApp = create<AppState>((set, get) => ({
   },
 
   editSource: (id, draft) => {
+    const s = get();
+    if (s.sourceEditDirty) {
+      set({ activeTabId: "source-edit" });
+      s.showToast("Unsaved source draft", "Save or discard it before opening another source.", "warn");
+      return;
+    }
     set({ editingSourceId: id, sourceDraft: draft ?? null });
     get().openTab("source-edit");
     // retitle the singleton tab to match the mode
@@ -347,6 +359,7 @@ export const useApp = create<AppState>((set, get) => ({
       ),
     }));
   },
+  setSourceEditDirty: (sourceEditDirty) => set({ sourceEditDirty }),
 
   onBatch: (sourceId, _lines, errors, dropped) =>
     set((s) => {
@@ -487,7 +500,23 @@ export const useApp = create<AppState>((set, get) => ({
     });
   },
 
-  closeTab: (id) =>
+  closeTab: (id) => {
+    if (id === "source-edit" && get().sourceEditDirty) {
+      void get()
+        .openDialog({
+          kind: "confirm",
+          title: "Discard source changes?",
+          message: "Your unsaved source configuration will be lost.",
+          confirmLabel: "Discard",
+          danger: true,
+        })
+        .then((confirmed) => {
+          if (confirmed === null) return;
+          set({ sourceEditDirty: false });
+          get().closeTab(id);
+        });
+      return;
+    }
     set((s) => {
       const tab = s.tabs.find((t) => t.id === id);
       if (!tab) return s;
@@ -507,10 +536,23 @@ export const useApp = create<AppState>((set, get) => ({
         setTimeout(() => get().deleteSource(transientId), 0);
       }
       if (tabs.length === 0) {
-        return { tabs: [{ id: "welcome", kind: "welcome", ...TAB_META.welcome }], activeTabId: "welcome" };
+        return {
+          tabs: [{ id: "welcome", kind: "welcome", ...TAB_META.welcome }],
+          activeTabId: "welcome",
+          ...(id === "source-edit"
+            ? { editingSourceId: null, sourceDraft: null, sourceEditDirty: false }
+            : {}),
+        };
       }
-      return { tabs, activeTabId };
-    }),
+      return {
+        tabs,
+        activeTabId,
+        ...(id === "source-edit"
+          ? { editingSourceId: null, sourceDraft: null, sourceEditDirty: false }
+          : {}),
+      };
+    });
+  },
 
   activateTab: (id) => set({ activeTabId: id }),
 
@@ -526,9 +568,19 @@ export const useApp = create<AppState>((set, get) => ({
     }),
 
   renameTab: (id, title) =>
-    set((s) => ({
-      tabs: s.tabs.map((t) => (t.id === id ? { ...t, title: title.trim() || t.title } : t)),
-    })),
+    set((s) => {
+      const tab = s.tabs.find((t) => t.id === id);
+      if (!tab) return s;
+      const nextTitle = title.trim() || tab.title;
+      return {
+        tabs: s.tabs.map((t) => (t.id === id ? { ...t, title: nextTitle } : t)),
+        sources: tab.sourceId
+          ? s.sources.map((source) =>
+              source.id === tab.sourceId ? { ...source, name: nextTitle } : source,
+            )
+          : s.sources,
+      };
+    }),
 
   setTheme: (id) => {
     localStorage.setItem("log:theme-v2", id);

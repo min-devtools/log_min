@@ -8,7 +8,8 @@ import { themeBase } from "../lib/themes";
 
 export function Titlebar() {
   const theme = useApp((s) => s.theme);
-  const sourceCount = useApp((s) => s.sources.length);
+  const sourceCount = useApp((s) => s.sources.filter((x) => !x.transient).length);
+  const temporaryCount = useApp((s) => s.sources.filter((x) => x.transient).length);
   // primitive selector: batches touch runtimes constantly, the count rarely changes
   const liveCount = useApp((s) => s.sources.filter((x) => s.runtimes[x.id]?.status === "live").length);
   const { toggleTheme, toggleCompact, setCommandOpen, editSource, openTab } = useApp.getState();
@@ -17,8 +18,10 @@ export function Titlebar() {
   const label = liveCount
     ? `${liveCount} live`
     : sourceCount
-      ? `${sourceCount} source${sourceCount === 1 ? "" : "s"}`
-      : "no sources";
+      ? `${sourceCount} saved${temporaryCount ? ` · ${temporaryCount} temporary` : ""}`
+      : temporaryCount
+        ? `${temporaryCount} temporary`
+        : "no sources";
 
   return (
     <header className="titlebar" data-tauri-drag-region>

@@ -6,6 +6,14 @@
 }
 
 /* sidebar source names never wrap — ellipsis like every other tool */
+.sidebar button.nav-item {
+  width: 100%;
+  border: 0;
+  appearance: none;
+  font: inherit;
+  text-align: left;
+}
+
 .sidebar .nav-item > span:first-of-type {
   min-width: 0;
   overflow: hidden;
@@ -920,6 +928,15 @@ body.light .docs-preview-editor { color: var(--editor-fg); }
   white-space: nowrap;
 }
 
+.log-transient-badge {
+  flex: none;
+  padding: 2px 6px;
+  border: 1px solid color-mix(in oklab, var(--status-warning), transparent 58%);
+  border-radius: 999px;
+  color: var(--status-warning);
+  font: 0.7692rem/1.2 var(--font-body);
+}
+
 .log-toolbar-actions {
   display: flex;
   align-items: center;
@@ -1019,6 +1036,10 @@ body.light .docs-preview-editor { color: var(--editor-fg); }
   position: relative;
   background: var(--surface-editor);
   contain: strict;
+  /* the virtualizer already compensates scrollTop when a row above the viewport
+     measures taller than its estimate; browser scroll anchoring would apply a
+     second correction for the same resize and the two fight — visible as jitter */
+  overflow-anchor: none;
 }
 
 .log-spacer {
@@ -1110,17 +1131,31 @@ body.light .docs-preview-editor { color: var(--editor-fg); }
   align-items: flex-start;
   padding-top: 4px;
   padding-bottom: 4px;
+  /* fixed slot for the two out-of-flow action buttons (2 × 20px + gaps): reserved
+     on every row whether or not it has the JSON button, so .log-raw's width — and
+     with it the row's predicted height — is the same for every row */
+  padding-right: 64px;
   white-space: normal;
   /* isolate each row's text layout — re-wrapping one entering row must not
      invite the engine to reconsider its absolutely-positioned siblings */
   contain: layout style;
 }
 
+/* break-all, not break-word: word-boundary wrapping ends a line early, so the
+   real line count runs ahead of the character-count estimate the virtualizer
+   sizes rows with, and every mismatch is a visible scroll correction. Breaking
+   at any character fills each line to the column edge, which the estimate can
+   predict exactly — and it's what a terminal does anyway. */
 .log-line.wrapped .log-raw {
   white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  word-break: break-word;
+  word-break: break-all;
 }
+
+/* the copy/JSON buttons leave the flex flow while wrapped: they are sticky (so
+   in-flow) and a JSON line carries two of them where a plain line carries one,
+   which would make .log-raw's width — and so the row's height — differ per row */
+.log-line.wrapped .log-copy { position: absolute; top: 4px; right: 6px; margin: 0; }
+.log-line.wrapped .log-json { right: 32px; }
 
 .log-line:hover { background: var(--row-alt); }
 

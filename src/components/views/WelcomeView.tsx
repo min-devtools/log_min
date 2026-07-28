@@ -7,6 +7,7 @@ import { useKeepScroll } from "../../lib/useKeepScroll";
 export function WelcomeView({ active }: { active: boolean }) {
   const scrollRef = useKeepScroll<HTMLElement>(active);
   const sources = useApp((s) => s.sources);
+  const savedSources = sources.filter((source) => !source.transient);
   const { openTab, editSource, setCommandOpen } = useApp.getState();
 
   const actions: { icon: IconName; label: string; desc: string; onClick: () => void }[] = [
@@ -14,7 +15,6 @@ export function WelcomeView({ active }: { active: boolean }) {
     { icon: "docs", label: "Tail a file", desc: "Rotation-aware tail of any log file.", onClick: () => editSource(null, { kind: "file" }) },
     { icon: "globe", label: "SSH tail a server", desc: "ssh user@host tail -F, managed like any command.", onClick: () => editSource(null, { kind: "cmd", command: "ssh user@host tail -F /var/log/app.log" }) },
     { icon: "search", label: "Stream over HTTP", desc: "Poll a remote .log URL — only new lines transfer.", onClick: () => editSource(null, { kind: "http" }) },
-    { icon: "zap", label: "Stack traces", desc: "Node/TS traces detected — click a frame to open your editor.", onClick: () => {} },
     { icon: "settings", label: "Settings", desc: "Theme, fonts and density.", onClick: () => openTab("settings") },
   ];
 
@@ -24,11 +24,13 @@ export function WelcomeView({ active }: { active: boolean }) {
         <div className="welcome-hero">
           <div className="welcome-copy">
             <div className="welcome-kicker">
-              {sources.length ? `${sources.length} source${sources.length === 1 ? "" : "s"} saved` : "no sources yet"}
+              {savedSources.length
+                ? `${savedSources.length} source${savedSources.length === 1 ? "" : "s"} saved`
+                : "no sources yet"}
             </div>
             <h1 className="welcome-title">LogMin</h1>
             <p className="welcome-text">
-              {sources.length
+              {savedSources.length
                 ? "Pick a source from the sidebar, or add another file or command."
                 : "A tiny log viewer + command runner. Tail files, run dev commands, and keep every line searchable and copyable."}
             </p>

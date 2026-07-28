@@ -43,7 +43,7 @@ export function SourceEditView({ active }: { active: boolean }) {
   const sources = useApp((s) => s.sources);
   const editingSourceId = useApp((s) => s.editingSourceId);
   const sourceDraft = useApp((s) => s.sourceDraft);
-  const { saveSource, openSourceTab, closeTab, startSource, showToast } = useApp.getState();
+  const { saveSource, openSourceTab, closeTab, startSource, showToast, setSourceEditDirty } = useApp.getState();
   const existing = editingSourceId ? sources.find((x) => x.id === editingSourceId) : undefined;
 
   const [kind, setKind] = useState<FormKind>(existing?.kind ?? (sourceDraft?.kind as SourceKind) ?? "cmd");
@@ -60,6 +60,7 @@ export function SourceEditView({ active }: { active: boolean }) {
 
   // re-seed the form when switching between edit targets
   useEffect(() => {
+    setSourceEditDirty(false);
     setKind(existing?.kind ?? (sourceDraft?.kind as SourceKind) ?? "cmd");
     setName(existing?.name ?? sourceDraft?.name ?? "");
     setPath(existing?.path ?? sourceDraft?.path ?? "");
@@ -69,7 +70,9 @@ export function SourceEditView({ active }: { active: boolean }) {
     setUrl(existing?.url ?? sourceDraft?.url ?? "");
     setHeadersText(kvToText(existing?.headers ?? (sourceDraft?.headers as Record<string, string>)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editingSourceId, sourceDraft]);
+  }, [editingSourceId, sourceDraft, setSourceEditDirty]);
+
+  const markDirty = () => setSourceEditDirty(true);
 
   const newId = newSourceId;
 
@@ -81,6 +84,7 @@ export function SourceEditView({ active }: { active: boolean }) {
       openSourceTab(def.id);
       void startSource(def.id);
     }
+    setSourceEditDirty(false);
     closeTab("source-edit");
     showToast("Imported", `${paths.length} file${paths.length === 1 ? "" : "s"} now tailing.`);
   };
@@ -92,6 +96,7 @@ export function SourceEditView({ active }: { active: boolean }) {
     if (paths.length === 1) {
       setPath(paths[0]);
       if (!name) setName(baseName(paths[0]));
+      markDirty();
     } else {
       importFiles(paths);
     }
@@ -125,6 +130,7 @@ export function SourceEditView({ active }: { active: boolean }) {
       command: `docker logs -f --tail 200 ${c.name}`,
     };
     saveSource(def);
+    setSourceEditDirty(false);
     closeTab("source-edit");
     openSourceTab(def.id);
     void startSource(def.id);
@@ -137,12 +143,16 @@ export function SourceEditView({ active }: { active: boolean }) {
     e.preventDefault();
     setUrl(parsed.url);
     if (Object.keys(parsed.headers).length) setHeadersText(kvToText(parsed.headers));
+    markDirty();
     showToast("curl imported", "URL and headers extracted from the curl command.");
   };
 
   const browseCwd = async () => {
     const picked = await open({ directory: true, title: "Choose working directory" });
-    if (typeof picked === "string") setCwd(picked);
+    if (typeof picked === "string") {
+      setCwd(picked);
+      markDirty();
+    }
   };
 
   const save = (startAfter: boolean) => {
@@ -178,6 +188,7 @@ export function SourceEditView({ active }: { active: boolean }) {
       headers: kind === "http" ? parseKv(headersText) : undefined,
     };
     saveSource(def);
+    setSourceEditDirty(false);
     closeTab("source-edit");
     openSourceTab(def.id);
     if (startAfter) void startSource(def.id);
@@ -190,7 +201,16 @@ export function SourceEditView({ active }: { active: boolean }) {
       <span className="settings-icon"><Icon name="pencil" size={15} /></span>
       <div className="settings-copy"><strong>Name</strong><span>Shown on the tab and sidebar. Defaults to the file name, command or URL.</span></div>
       <div className="settings-control">
-        <input className="settings-select" value={name} placeholder="api-server" spellCheck={false} onChange={(e) => setName(e.target.value)} />
+        <input
+          className="settings-select"
+          value={name}
+          placeholder="api-server"
+          spellCheck={false}
+          onChange={(e) => {
+            setName(e.target.value);
+            markDirty();
+          }}
+        />
       </div>
     </div>
   );
@@ -213,7 +233,10 @@ export function SourceEditView({ active }: { active: boolean }) {
                 type="button"
                 className={`source-type-card ${kind === t.id ? "active" : ""}`}
                 aria-pressed={kind === t.id}
-                onClick={() => setKind(t.id)}
+                onClick={() => {
+                  setKind(t.id);
+                  markDirty();
+                }}
               >
                 <span className="source-type-icon"><Icon name={t.icon} size={16} /></span>
                 <span className="source-type-copy">
@@ -238,7 +261,10 @@ export function SourceEditView({ active }: { active: boolean }) {
                   value={path}
                   placeholder="/var/log/app.log"
                   spellCheck={false}
-                  onChange={(e) => setPath(e.target.value)}
+                  onChange={(e) => {
+                    setPath(e.target.value);
+                    markDirty();
+                  }}
                 />
                 <ToolButton onClick={() => void browseFiles()}><Icon name="docs" /> Browse…</ToolButton>
               </div>
@@ -260,7 +286,10 @@ export function SourceEditView({ active }: { active: boolean }) {
                   value={command}
                   placeholder={"npm run dev\n# or paste a multi-line script"}
                   spellCheck={false}
-                  onChange={(e) => setCommand(e.target.value)}
+                  onChange={(e) => {
+                    setCommand(e.target.value);
+                    markDirty();
+                  }}
                 />
               </div>
             </div>
@@ -274,7 +303,10 @@ export function SourceEditView({ active }: { active: boolean }) {
                   value={cwd}
                   placeholder="~/Project/my-app"
                   spellCheck={false}
-                  onChange={(e) => setCwd(e.target.value)}
+                  onChange={(e) => {
+                    setCwd(e.target.value);
+                    markDirty();
+                  }}
                 />
                 <ToolButton onClick={() => void browseCwd()}><Icon name="docs" /> Browse…</ToolButton>
               </div>
@@ -289,7 +321,10 @@ export function SourceEditView({ active }: { active: boolean }) {
                   value={envText}
                   placeholder={"PORT=3000\nDEBUG=app:*"}
                   spellCheck={false}
-                  onChange={(e) => setEnvText(e.target.value)}
+                  onChange={(e) => {
+                    setEnvText(e.target.value);
+                    markDirty();
+                  }}
                 />
               </div>
             </div>
@@ -310,7 +345,10 @@ export function SourceEditView({ active }: { active: boolean }) {
                   value={url}
                   placeholder="https://host/path/service.log — or paste a curl command"
                   spellCheck={false}
-                  onChange={(e) => setUrl(e.target.value)}
+                  onChange={(e) => {
+                    setUrl(e.target.value);
+                    markDirty();
+                  }}
                   onPaste={onCurlPaste}
                 />
               </div>
@@ -325,7 +363,10 @@ export function SourceEditView({ active }: { active: boolean }) {
                   value={headersText}
                   placeholder={"Authorization=Bearer token"}
                   spellCheck={false}
-                  onChange={(e) => setHeadersText(e.target.value)}
+                  onChange={(e) => {
+                    setHeadersText(e.target.value);
+                    markDirty();
+                  }}
                   onPaste={onCurlPaste}
                 />
               </div>

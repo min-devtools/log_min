@@ -298,7 +298,8 @@ export function Sidebar() {
   const sourceRow = (s: SourceDef) => {
     const status = statusOf(s.id);
     return (
-      <motion.div
+      <motion.button
+        type="button"
         key={s.id}
         layout
         initial={{ opacity: 0, height: 0 }}
@@ -321,13 +322,14 @@ export function Sidebar() {
         <Badge tone={statusTone(status)}>
           {status === "live" ? "live" : status === "error" ? "error" : "idle"}
         </Badge>
-      </motion.div>
+      </motion.button>
     );
   };
 
   const rootSources = sources.filter(
     (s) => !s.transient && (!s.collectionId || !collections.some((c) => c.id === s.collectionId)),
   );
+  const savedSourceCount = sources.filter((source) => !source.transient).length;
 
   const menuSource = menu ? sources.find((s) => s.id === menu.id) : undefined;
   const menuItems: ContextMenuItem[] = menuSource
@@ -377,7 +379,8 @@ export function Sidebar() {
         <div className="group">
           <div className="group-title"><span>Workspace</span><span /></div>
           {WORKSPACE_NAV.map((item) => (
-            <div
+            <button
+              type="button"
               key={item.kind}
               className={`nav-item ${activeTab?.kind === item.kind ? "active" : ""}`}
               onClick={() => openTab(item.kind)}
@@ -387,21 +390,22 @@ export function Sidebar() {
               <span>
                 {item.meta?.startsWith("⌘") ? <span className="kbd">{item.meta}</span> : item.meta ?? ""}
               </span>
-            </div>
+            </button>
           ))}
         </div>
 
         <div className="group">
-          <div className="group-title"><span>Sources</span><span>{sources.length ? String(sources.length) : ""}</span></div>
-          <div
+          <div className="group-title"><span>Sources</span><span>{savedSourceCount ? String(savedSourceCount) : ""}</span></div>
+          <button
+            type="button"
             className={`nav-item ${activeTab?.kind === "source-edit" ? "active" : ""}`}
             onClick={() => editSource(null)}
           >
             <Icon name="plus" className="soft-blue" /><span>New Source</span><span className="kbd">⌘N</span>
-          </div>
-          <div className="nav-item" onClick={() => void newCollection()}>
+          </button>
+          <button type="button" className="nav-item" onClick={() => void newCollection()}>
             <Icon name="folder-plus" className="soft-orange" /><span>New Collection</span><span />
-          </div>
+          </button>
 
           <AnimatePresence initial={false}>
           {collections.map((c) => {
@@ -421,19 +425,12 @@ export function Sidebar() {
                 data-drop-kind="collection"
                 data-drop-id={c.id}
               >
-                <div
-                  role="button"
-                  tabIndex={0}
+                <button
+                  type="button"
                   className={`nav-item collection-node with-conn-dot ${dropIndicator === `col:${c.id}:before` ? "drop-before" : ""} ${dropIndicator === `col:${c.id}:after` ? "drop-after" : ""} ${dragging?.kind === "collection" && dragging.id === c.id ? "dragging" : ""}`}
                   aria-expanded={!isCollapsed}
                   onPointerDown={(event) => beginPointerDrag(event, { kind: "collection", id: c.id })}
                   onClick={() => toggleCollection(c.id)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      toggleCollection(c.id);
-                    }
-                  }}
                   onContextMenu={(e) => {
                     e.preventDefault();
                     setColMenu({ x: e.clientX, y: e.clientY, id: c.id });
@@ -447,8 +444,8 @@ export function Sidebar() {
                   />
                   <span>{c.name}</span>
                   <Badge>{members.length || ""}</Badge>
-                </div>
-                <div className="collection-requests">
+                </button>
+                <div className="collection-requests" aria-hidden={isCollapsed} inert={isCollapsed}>
                   <AnimatePresence initial={false}>
                     {shown.map(sourceRow)}
                   </AnimatePresence>

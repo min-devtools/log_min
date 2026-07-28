@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useVirtualizer, type VirtualItem, type Virtualizer } from "@tanstack/react-virtual";
-import { estimateLogRowHeight } from "../../lib/wrapLayout";
+import { estimateLogRowHeight, type RowMetrics } from "../../lib/wrapLayout";
 import { useApp } from "../../store";
 import type { LogModel } from "../../lib/logModel";
 
@@ -14,8 +14,11 @@ export interface LogViewportOpts {
   uiFontSize: number;
   /** frame-gated buffer version — drives stick/range refresh effects */
   version: number;
-  /** px of left gutters (time/prefix) — wrap height estimates subtract it */
-  reservedPx?: number;
+  /** left gutters (time / source prefix) in CHARACTER columns — the hook turns
+   * them into px with the measured char width, which a caller can't know */
+  gutterCh?: number;
+  /** the gutters' non-text px: flex gaps, separator padding, border */
+  gutterPx?: number;
 }
 
 export interface LogViewport<A> {
@@ -51,7 +54,7 @@ export interface LogViewport<A> {
  * over the model's line address.
  */
 export function useLogViewport<A>(model: LogModel<A>, opts: LogViewportOpts): LogViewport<A> {
-  const { active, wrap, rowH, uiFontSize, version, reservedPx = 0 } = opts;
+  const { active, wrap, rowH, uiFontSize, version, gutterCh = 0, gutterPx = 0 } = opts;
   const viewLen = model.length;
 
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -70,11 +73,52 @@ export function useLogViewport<A>(model: LogModel<A>, opts: LogViewportOpts): Lo
    * return — and a plain index drifts too, because live sources keep evicting */
   const savedAddr = useRef<A | null>(null);
 
+  // fallback mirrors the CSS at the default font — only used before the probe runs
+  const fallbackMetrics = (px: number): RowMetrics => ({
+    charW: px * 0.9231 * 0.6,
+    lineH: px * 0.9231 * 1.45,
+    padY: 8,
+  });
+  const [metrics, setMetrics] = useState<RowMetrics>(() => fallbackMetrics(uiFontSize));
+
+  // measure a throwaway row instead of deriving metrics from uiFontSize: the mono
+  // advance ratio depends on the font the user picked, and a wrong estimate shows
+  // up as the wrapped view jumping every time a row is measured for real
+  const editorFont = useApp((s) => s.editorFont);
+  useEffect(() => {
+    const host = scrollRef.current;
+    if (!host || !wrap || !active) return;
+    const probe = document.createElement("div");
+    probe.className = "log-line wrapped";
+    probe.style.cssText = "position:absolute;visibility:hidden;top:0;left:0;width:auto;contain:none";
+    const raw = document.createElement("span");
+    raw.className = "log-raw";
+    raw.style.cssText = "flex:none;white-space:pre;width:max-content";
+    raw.textContent = "0".repeat(100);
+    probe.appendChild(raw);
+    host.appendChild(probe);
+    const cs = getComputedStyle(probe);
+    const next: RowMetrics = {
+      charW: raw.getBoundingClientRect().width / 100 || fallbackMetrics(uiFontSize).charW,
+      lineH: parseFloat(cs.lineHeight) || fallbackMetrics(uiFontSize).lineH,
+      padY: (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0),
+    };
+    host.removeChild(probe);
+    setMetrics((m) =>
+      m.charW === next.charW && m.lineH === next.lineH && m.padY === next.padY ? m : next,
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wrap, active, uiFontSize, editorFont]);
+
   const virtualizer = useVirtualizer({
     count: viewLen,
     getScrollElement: () => scrollRef.current,
     estimateSize: (index) =>
-      estimateLogRowHeight(model.at(index)?.raw ?? "", viewportWidth - reservedPx, uiFontSize),
+      estimateLogRowHeight(
+        model.at(index)?.raw ?? "",
+        viewportWidth - gutterCh * metrics.charW - gutterPx,
+        metrics,
+      ),
     getItemKey: (index) => {
       const addr = model.addrAt(index);
       return addr !== undefined ? model.key(addr) : index;

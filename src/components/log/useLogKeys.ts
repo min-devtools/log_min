@@ -26,6 +26,16 @@ export interface LogKeysOpts<A> {
   pauseFollow: () => void;
 }
 
+function isEditableTarget(target: EventTarget | null): boolean {
+  const element = target instanceof HTMLElement ? target : null;
+  if (!element) return false;
+  return (
+    element.matches("input, textarea, select") ||
+    element.isContentEditable ||
+    Boolean(element.closest('[contenteditable="true"]'))
+  );
+}
+
 /** shared keyboard layer: ⌘F, ⌘C, Ctrl+L, Esc, F8/⇧F8 error stepping, ↑/↓ walk */
 export function useLogKeys<A>({
   active,
@@ -48,7 +58,8 @@ export function useLogKeys<A>({
     if (!active) return;
     const onKey = (e: KeyboardEvent) => {
       const mod = e.metaKey || e.ctrlKey;
-      const inInput = (e.target as HTMLElement)?.tagName === "INPUT";
+      const inInput = isEditableTarget(e.target);
+      if (inInput) return;
       const viewLen = model.length;
       if (mod && e.key.toLowerCase() === "f" && !yieldSearchToDock) {
         e.preventDefault();
