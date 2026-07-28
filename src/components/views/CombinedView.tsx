@@ -43,7 +43,7 @@ export function CombinedView({ collectionId, active }: Props) {
     [membersKey],
   );
   const version = useFrameVersion(active, readVersion);
-  const { startSource, stopSource, showToast, setInspectLine } = useApp.getState();
+  const { showToast, setInspectLine } = useApp.getState();
 
   const rowH = useRowHeight();
   const uiFontSize = useApp((s) => s.uiFontSize);
@@ -329,25 +329,6 @@ export function CombinedView({ collectionId, active }: Props) {
               <Icon name="copy" />
             </ToolButton>
           )}
-          <ToolButton
-            iconOnly
-            variant="primary"
-            title="Start all sources"
-            aria-label="Start all"
-            disabled={!members.length}
-            onClick={() => members.forEach((id) => void startSource(id))}
-          >
-            <Icon name="play" />
-          </ToolButton>
-          <ToolButton
-            iconOnly
-            title="Stop all sources"
-            aria-label="Stop all"
-            disabled={!anyLive}
-            onClick={() => members.forEach((id) => void stopSource(id))}
-          >
-            <Icon name="stop" />
-          </ToolButton>
           <ToolButton
             iconOnly
             title={viewport.follow ? "Pause follow (⌘↵)" : "Resume follow (⌘↵)"}

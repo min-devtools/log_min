@@ -621,6 +621,11 @@ export const useApp = create<AppState>((set, get) => ({
   runActive: () => {
     const s = get();
     const tab = s.tabs.find((t) => t.id === s.activeTabId);
+    if (tab?.kind === "combined" && tab.collectionId) {
+      const collectionId = tab.collectionId;
+      s.sources.filter((x) => x.collectionId === collectionId).forEach((x) => void s.startSource(x.id));
+      return;
+    }
     if (tab?.kind !== "source" || !tab.sourceId) return;
     const def = s.sources.find((x) => x.id === tab.sourceId);
     const live = runtimeOf(s, tab.sourceId).status === "live";

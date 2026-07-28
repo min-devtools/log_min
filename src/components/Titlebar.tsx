@@ -1,4 +1,5 @@
 import { motion, AnimatePresence } from "motion/react";
+import { useShallow } from "zustand/react/shallow";
 import { ToolButton } from "../ui/ToolButton";
 import { Badge } from "../ui/Badge";
 import { Icon } from "../ui/Icon";
@@ -16,16 +17,34 @@ export function Titlebar() {
 
   const activeTab = useApp((s) => s.tabs.find((t) => t.id === s.activeTabId));
   const sourceId = activeTab?.kind === "source" ? activeTab.sourceId : undefined;
+  const collectionId = activeTab?.kind === "combined" ? activeTab.collectionId : undefined;
+
   const def = useApp((s) => (sourceId ? s.sources.find((x) => x.id === sourceId) : undefined));
   const status = useApp((s) => (sourceId ? s.runtimes[sourceId]?.status ?? "idle" : "idle"));
+  const members = useApp(
+    useShallow((s) => (collectionId ? s.sources.filter((x) => x.collectionId === collectionId).map((x) => x.id) : [])),
+  );
+  const anyLive = useApp((s) => members.some((id) => s.runtimes[id]?.status === "live"));
+
   const isCmd = def?.kind === "cmd";
   const live = status === "live";
-  const primaryDisabled = !sourceId || (!isCmd && live);
-  const primaryTitle = !sourceId
-    ? "Open a source (⌘N)"
-    : isCmd
-      ? live ? "Restart (⌘↵)" : "Start (⌘↵)"
-      : live ? "Streaming…" : def?.kind === "http" ? "Start streaming (⌘↵)" : "Start tailing (⌘↵)";
+  const primaryDisabled = collectionId ? !members.length : !sourceId || (!isCmd && live);
+  const primaryTitle = collectionId
+    ? "Start all sources (⌘↵)"
+    : !sourceId
+      ? "Open a source (⌘N)"
+      : isCmd
+        ? live ? "Restart (⌘↵)" : "Start (⌘↵)"
+        : live ? "Streaming…" : def?.kind === "http" ? "Start streaming (⌘↵)" : "Start tailing (⌘↵)";
+  const stopDisabled = collectionId ? !anyLive : !sourceId || !live;
+  const runPrimary = () => {
+    if (collectionId) members.forEach((id) => void startSource(id));
+    else if (sourceId) void startSource(sourceId);
+  };
+  const runStop = () => {
+    if (collectionId) members.forEach((id) => void stopSource(id));
+    else if (sourceId) void stopSource(sourceId);
+  };
 
   const tone = liveCount ? "green" : "idle";
   const label = liveCount
@@ -56,7 +75,7 @@ export function Titlebar() {
           title={primaryTitle}
           aria-label={primaryTitle}
           disabled={primaryDisabled}
-          onClick={() => sourceId && void startSource(sourceId)}
+          onClick={runPrimary}
         >
           <Icon name="play" />
         </ToolButton>
@@ -65,8 +84,8 @@ export function Titlebar() {
           variant="danger"
           title="Stop"
           aria-label="Stop"
-          disabled={!sourceId || !live}
-          onClick={() => sourceId && void stopSource(sourceId)}
+          disabled={stopDisabled}
+          onClick={runStop}
         >
           <Icon name="stop" />
         </ToolButton>
