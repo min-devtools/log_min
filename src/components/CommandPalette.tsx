@@ -83,7 +83,7 @@ export function CommandPalette() {
         label: "SSH tail…",
         action: () => editSource(null, { kind: "cmd", command: "ssh user@host tail -F /var/log/app.log" }),
       },
-      { icon: "arrow-down", label: "Toggle follow (active tab)", kbd: "⌘↵", action: () => runActive() },
+      { icon: "play", label: "Start/restart active source", kbd: "⌘↵", action: () => runActive() },
       { icon: "panel-left", label: "Toggle left sidebar", kbd: "⌘B", action: () => toggleLeft() },
       { icon: "panel-right", label: "Toggle right panel", kbd: "⌘R", action: () => toggleRight() },
       { icon: "settings", label: "Open Settings", kbd: "⌘,", action: () => openTab("settings") },

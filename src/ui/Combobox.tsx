@@ -84,7 +84,7 @@ export function Combobox({ value, options, placeholder, onChange, id, freeText }
             e.preventDefault();
             setCursor((c) => Math.max(0, c - 1));
           }
-          if (e.key === "Enter" && open && filtered[cursor]) {
+          if (e.key === "Enter" && !e.metaKey && !e.ctrlKey && open && filtered[cursor]) {
             e.preventDefault();
             pick(filtered[cursor].value);
             (e.target as HTMLInputElement).blur();

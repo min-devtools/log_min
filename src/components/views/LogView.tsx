@@ -58,7 +58,7 @@ export function LogView({ sourceId, active }: Props) {
   );
   const version = useFrameVersion(active, readVersion);
   // actions are stable — getState() avoids subscribing to the whole store
-  const { startSource, stopSource, sendStdin, showToast, editSource, setInspectLine, saveSource } =
+  const { startSource, sendStdin, showToast, editSource, setInspectLine, saveSource } =
     useApp.getState();
 
   const ring = bufferFor(sourceId);
@@ -350,40 +350,9 @@ export function LogView({ sourceId, active }: Props) {
               <Icon name="copy" />
             </ToolButton>
           )}
-          {isCmd && !live && (
-            <ToolButton
-              iconOnly
-              variant="primary"
-              title="Start (▶)"
-              aria-label="Start"
-              onClick={() => void startSource(sourceId)}
-            >
-              <Icon name="play" />
-            </ToolButton>
-          )}
-          {isCmd && live && (
-            <>
-              <ToolButton iconOnly title="Restart" aria-label="Restart" onClick={() => void startSource(sourceId)}>
-                <Icon name="refresh" />
-              </ToolButton>
-              <ToolButton iconOnly title="Stop (kills the whole process tree)" aria-label="Stop" onClick={() => void stopSource(sourceId)}>
-                <Icon name="stop" />
-              </ToolButton>
-            </>
-          )}
-          {!isCmd && (
-            <ToolButton
-              iconOnly
-              title={live ? "Stop" : def.kind === "http" ? "Start streaming" : "Start tailing"}
-              aria-label={live ? "Stop" : def.kind === "http" ? "Stream" : "Tail"}
-              onClick={() => void (live ? stopSource(sourceId) : startSource(sourceId))}
-            >
-              <Icon name={live ? "stop" : "play"} />
-            </ToolButton>
-          )}
           <ToolButton
             iconOnly
-            title={viewport.follow ? "Pause follow (⌘↵)" : "Resume follow (⌘↵)"}
+            title={viewport.follow ? "Pause follow" : "Resume follow"}
             aria-label="Toggle follow"
             aria-pressed={viewport.follow}
             className={`log-view-toggle ${viewport.follow ? "active" : ""}`}

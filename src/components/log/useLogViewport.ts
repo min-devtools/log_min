@@ -290,16 +290,6 @@ export function useLogViewport<A>(model: LogModel<A>, opts: LogViewportOpts): Lo
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wrap, viewportWidth, uiFontSize, computeRange]);
 
-  // ⌘↵ from the app shell toggles follow on the active tab
-  const runNonce = useApp((s) => s.runNonce);
-  const runSeen = useRef(runNonce);
-  useEffect(() => {
-    if (runNonce !== runSeen.current) {
-      runSeen.current = runNonce;
-      if (active) (follow ? pauseFollow() : resumeFollow());
-    }
-  }, [runNonce, active, follow, pauseFollow, resumeFollow]);
-
   // ── jump & flash ────────────────────────────────────────────────────────
   const flashTimer = useRef(0);
   useEffect(() => () => window.clearTimeout(flashTimer.current), []);

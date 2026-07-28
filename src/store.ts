@@ -96,8 +96,6 @@ interface AppState {
   leftCollapsed: boolean;
   rightCollapsed: boolean;
   commandOpen: boolean;
-  /** bumped by ⌘↵ / titlebar — the active LogView toggles follow */
-  runNonce: number;
   /** set by the error dock — the matching LogView scrolls to the seq and flashes it.
    *  combinedId set → the collection's combined view consumes it instead */
   jumpTarget: { sourceId: string; seq: number; nonce: number; combinedId?: string } | null;
@@ -162,6 +160,7 @@ interface AppState {
   toggleLeft: () => void;
   toggleRight: () => void;
   setCommandOpen: (open: boolean) => void;
+  /** ⌘↵ / titlebar play — start (or restart, for cmd sources) the active tab's source */
   runActive: () => void;
   jumpToLine: (sourceId: string, seq: number) => void;
   /** focus + flash a line inside a collection's combined view (dock "Jump") */
@@ -211,7 +210,6 @@ export const useApp = create<AppState>((set, get) => ({
   leftCollapsed: false,
   rightCollapsed: false,
   commandOpen: false,
-  runNonce: 0,
   jumpTarget: null,
   inspectLine: null,
   dockTab: INITIAL_DOCK_TAB,
@@ -620,7 +618,14 @@ export const useApp = create<AppState>((set, get) => ({
   toggleLeft: () => set((s) => ({ leftCollapsed: !s.leftCollapsed })),
   toggleRight: () => set((s) => ({ rightCollapsed: !s.rightCollapsed })),
   setCommandOpen: (open) => set({ commandOpen: open }),
-  runActive: () => set((s) => ({ runNonce: s.runNonce + 1 })),
+  runActive: () => {
+    const s = get();
+    const tab = s.tabs.find((t) => t.id === s.activeTabId);
+    if (tab?.kind !== "source" || !tab.sourceId) return;
+    const def = s.sources.find((x) => x.id === tab.sourceId);
+    const live = runtimeOf(s, tab.sourceId).status === "live";
+    if (def?.kind === "cmd" || !live) void s.startSource(tab.sourceId);
+  },
   jumpToLine: (sourceId, seq) =>
     set((s) => {
       // jumping from a trace tab must land on the log tab, where the line lives
